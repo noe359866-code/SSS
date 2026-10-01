@@ -157,14 +157,14 @@
       <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
         <svg viewBox="0 0 24 24" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <h2 class="text-sm font-semibold">Buscador de metadatos</h2>
-        <span class="ml-auto text-[11px] text-zinc-500">3 fuentes</span>
+        <span class="ml-auto text-[11px] text-zinc-500">IMDb · Cinemeta · TVMaze · Wikidata · AniList · TMDB · OMDb…</span>
       </div>
 
       <div class="space-y-3 p-4">
-        <div class="seg" id="sourcePicker" role="tablist" aria-label="Fuente de búsqueda">
-          <button type="button" data-source="imdb" class="active" role="tab">IMDb Suggest</button>
-          <button type="button" data-source="tmdb" role="tab">TMDB</button>
-          <button type="button" data-source="omdb" role="tab">OMDb</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="sr-only" for="sourceSelect">Fuente de búsqueda</label>
+          <select id="sourceSelect" class="select flex-1 basis-56"></select>
+          <span id="sourceCount" class="badge badge-zinc">— activas</span>
         </div>
 
         <form id="searchForm" class="flex gap-2" autocomplete="off">
@@ -187,6 +187,7 @@
             <button type="button" data-type="movie" class="!px-3">Películas</button>
             <button type="button" data-type="series" class="!px-3">Series</button>
           </div>
+          <span id="sourceChips" class="flex flex-wrap gap-1.5"></span>
           <p id="searchHint" class="text-[11px] leading-snug text-zinc-500"></p>
         </div>
 
@@ -211,7 +212,7 @@
           </button>
           <label class="flex cursor-pointer select-none items-center gap-2 text-[11px] text-zinc-400">
             <input id="chkEnrich" type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" checked />
-            Completar títulos con OMDb (si hay API key)
+            Completar título, año y póster automáticamente
           </label>
         </div>
         <p class="text-[11px] leading-relaxed text-zinc-500">
@@ -226,7 +227,8 @@
       <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
         <svg viewBox="0 0 24 24" class="h-4 w-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg>
         <h2 class="text-sm font-semibold">Fuentes de datos</h2>
-        <button id="btnOpenSettings2" class="btn btn-ghost btn-xs ml-auto">Configurar claves</button>
+        <span class="badge badge-zinc" data-tip="Marca o desmarca las que quieras usar en la búsqueda «Todas»">activar en la búsqueda</span>
+        <button id="btnOpenSettings2" class="btn btn-ghost btn-xs ml-auto">Añadir claves</button>
       </div>
       <ul id="providersList" class="divide-y divide-zinc-800/80 text-[12px]"></ul>
     </section>
@@ -305,6 +307,8 @@
     <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://github.com/settings/tokens?type=beta">Crear PAT</a>
     <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://developer.themoviedb.org/docs/getting-started">TMDB API</a>
     <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://www.omdbapi.com/apikey.aspx">OMDb API</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://imdbapi.dev">imdbapi.dev</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://api.tvmaze.com/">TVMaze</a>
     <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://docs.github.com/rest/repos/contents">Docs GitHub Contents</a>
   </span>
 </footer>
@@ -362,7 +366,7 @@
       <div class="space-y-3 border-t border-zinc-800 pt-4">
         <div class="flex items-center gap-2">
           <span class="badge badge-sky">3 · Metadatos</span>
-          <span class="text-[11px] text-zinc-500">IMDb Suggest funciona sin clave; TMDB y OMDb requieren API key</span>
+          <span class="text-[11px] text-zinc-500">Todas son opcionales: sin ninguna clave ya funcionan IMDb Suggest, imdbapi.dev, Cinemeta, TVMaze, Wikidata y AniList</span>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
@@ -385,6 +389,16 @@
               <option value="fr-FR">Francés (fr-FR)</option>
               <option value="de-DE">Alemán (de-DE)</option>
             </select>
+          </div>
+          <div>
+            <label class="label" for="cfgTrakt">Trakt client_id</label>
+            <input id="cfgTrakt" class="input font-mono text-xs" placeholder="client_id de Trakt" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://trakt.tv/oauth/applications">Crear app en Trakt ↗</a>
+          </div>
+          <div>
+            <label class="label" for="cfgSimkl">Simkl client_id</label>
+            <input id="cfgSimkl" class="input font-mono text-xs" placeholder="client_id de Simkl" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://simkl.com/settings/developer/">Crear app en Simkl ↗</a>
           </div>
           <div class="flex flex-col justify-end gap-2 pb-1">
             <label class="flex cursor-pointer select-none items-center gap-2 text-[12px] text-zinc-400">
@@ -530,8 +544,8 @@
 
   const DEFAULT_CFG = {
     owner: '', repo: '', branch: 'main', path: 'watchlist.txt',
-    remember: true, tmdbKey: '', omdbKey: '', lang: 'es-ES',
-    autoLoad: true, finalNewline: true, commitMsg: ''
+    remember: true, tmdbKey: '', omdbKey: '', traktKey: '', simklKey: '', lang: 'es-ES',
+    autoLoad: true, finalNewline: true, commitMsg: '', searchSource: 'all', enabledSources: null
   };
 
   /* Almacenamiento tolerante a fallos (iframes sandbox sin localStorage) */
@@ -861,17 +875,14 @@
   let remoteMeta = null;    // { path, htmlUrl, fetchedAt, author }
   let loaded = false;       // ¿Hay algo cargado (remoto o local)?
   let results = [];         // Resultados de búsqueda visibles
-  let searchSource = 'imdb';
+  let searchSource = (cfg.searchSource || 'all');
+  let searchTookMs = 0;
   let searchTypeFilter = 'all';
   let searchTicket = 0;     // Evita respuestas obsoletas de búsquedas anteriores
   let searching = false;
   let pickerCtx = null;     // Contexto del modal temporada/episodio
   let askResolver = null;   // Promesa del modal de confirmación
-  const providerState = {   // Estado de cada fuente de metadatos
-    imdb: { id: 'imdb', name: 'IMDb Suggest', note: 'Público · sin API key', state: 'idle', detail: 'Listo' },
-    tmdb: { id: 'tmdb', name: 'TMDB v3', note: 'Requiere API key', state: 'idle', detail: 'Sin configurar' },
-    omdb: { id: 'omdb', name: 'OMDb', note: 'Requiere API key', state: 'idle', detail: 'Sin configurar' }
-  };
+  let providerState = {};   // Estado en vivo de cada fuente (se crea en la sección 5)
 
   let webFallback = false;  // El fetch se bloqueó por CORS/red → se sugiere abrir en ventana
 
@@ -1112,77 +1123,479 @@
   }
 
   /* ===========================================================================
-   * 5 · PROVEEDORES DE METADATOS
+   * 5 · FUENTES DE METADATOS
+   * ---------------------------------------------------------------------------
+   *  Registro extensible de proveedores. IMDb no tiene API oficial: se combinan
+   *  endpoints públicos de IMDb (Suggest), APIs libres sin clave (imdbapi.dev,
+   *  Cinemeta/Stremio, TVMaze, Wikidata, AniList) y APIs con clave gratuita
+   *  (TMDB, OMDb, Trakt, Simkl).
+   *
+   *  Cada fuente implementa:
+   *    search(query)                → Array<resultado unificado>
+   *    detail(imdbId, hint)         → título/año/póster/tipo  (enriquecimiento)
+   *    seriesInfo(imdbId, hint)     → { count, perSeason }    (temporadas)
    * ======================================================================== */
-  function setProvider(id, state, detail) {
-    const p = providerState[id];
-    if (!p) return;
-    p.state = state;
-    if (detail) p.detail = detail;
-    renderProviders();
+
+  /* ----------------------------- utilidades ----------------------------- */
+  function normTitle(s) {
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
-  function providerReady(id) {
-    if (id === 'imdb') return true;
-    if (id === 'tmdb') return !!String(cfg.tmdbKey || '').trim();
-    if (id === 'omdb') return !!String(cfg.omdbKey || '').trim();
-    return false;
+  function relevanceOf(title, query) {
+    const t = normTitle(title), q = normTitle(query);
+    if (!q) return 3;
+    if (t === q) return 0;
+    if (t.indexOf(q) === 0) return 1;
+    if (t.indexOf(q) !== -1) return 2;
+    return 3;
   }
 
-  function missingKeyError(id) {
-    return new ApiError(
-      id === 'tmdb' ? 'Añade tu API Key de TMDB en Ajustes para buscar con esta fuente.'
-                   : 'Añade tu API Key de OMDb en Ajustes para buscar con esta fuente.',
-      0, null, 'config'
-    );
-  }
+  const typeFromImdbQid = imdbQidToType;
 
-  function normalizeMediaType(v) {
-    const s = String(v || '').toLowerCase();
-    if (s === 'movie' || s === 'film') return 'movie';
-    if (s === 'tv' || s === 'series' || s === 'tvseries' || s === 'tvminiseries') return 'series';
+  function mediaTypeFromImdbApi(t) {
+    const s = String(t || '').toUpperCase();
+    if (s.indexOf('TV_') === 0) return 'series';
+    if (s === 'MOVIE' || s === 'SHORT' || s === 'VIDEO' || s === 'VIDEO_GAME') return 'movie';
     return null;
   }
 
-  /* --------------------------- IMDb Suggest ---------------------------
-   * Endpoint público (el mismo que usa imdb.com para el autocompletado),
-   * sin API key y con CORS abierto. El host v2 funciona como respaldo.
-   * ------------------------------------------------------------------ */
+  function normalizeMediaType(v) {
+    const s = String(v == null ? '' : v).toLowerCase();
+    if (s === 'movie' || s === 'film') return 'movie';
+    if (s === 'tv' || s === 'series' || s === 'tvseries' || s === 'tvminiseries' || s === 'anime') return 'series';
+    return null;
+  }
+
+  function cleanYear(v) {
+    const m = /(\d{4})/.exec(String(v == null ? '' : v));
+    return m ? m[1] : '';
+  }
+
+  function resultOf(data) {
+    return {
+      key: '',
+      source: data.source || '',      // imprescindible: identifica la fuente en la fusión
+      sources: [],
+      imdbId: data.imdbId || '',
+      title: data.title || '',
+      year: cleanYear(data.year),
+      mediaType: data.mediaType || null,
+      poster: data.poster || '',
+      subtitle: data.subtitle || '',
+      overview: data.overview || '',
+      tmdbId: data.tmdbId || null,
+      tmdbKind: data.tmdbKind || null,
+      seasons: data.seasons || null,
+      extra: data.extra || null
+    };
+  }
+
+  /* --------------------------- registro --------------------------- */
+  const SOURCES = {};
+
+  function defSource(def) {
+    SOURCES[def.id] = Object.assign({
+      group: 'free', keyField: null, note: '', docs: '', experimental: false,
+      search: null, detail: null, seriesInfo: null
+    }, def);
+  }
+
+  function sourceUsable(id) {
+    const s = SOURCES[id];
+    if (!s) return false;
+    if (!s.keyField) return true;
+    return !!(cfg[s.keyField] && String(cfg[s.keyField]).trim());
+  }
+
+  function isEnabled(id) {
+    const list = cfg.enabledSources;
+    if (!Array.isArray(list) || !list.length) return true;
+    return list.indexOf(id) !== -1;
+  }
+
+  function usableSources() {
+    return Object.keys(SOURCES).filter((id) => isEnabled(id) && sourceUsable(id));
+  }
+
+  function keyHint(id) {
+    const s = SOURCES[id];
+    if (!s) return 'Fuente desconocida: ' + id + '.';
+    return 'Añade la clave de ' + s.label + ' en Ajustes → Metadatos para usar esta fuente.';
+  }
+
+  async function trySources(order, fn) {
+    for (let i = 0; i < order.length; i += 1) {
+      const id = order[i];
+      if (!SOURCES[id] || !sourceUsable(id)) continue;
+      try {
+        const out = await fn(SOURCES[id], id);
+        if (out) return out;
+      } catch (_) { /* se prueba la siguiente fuente */ }
+    }
+    return null;
+  }
+
+  /* ======================================================================
+   * 1) IMDb Suggest — autocompletado público de imdb.com (sin clave)
+   * ==================================================================== */
   function imdbSuggestUrl(q, v2) {
     const host = v2 ? 'https://v2.sg.media-imdb.com' : 'https://v3.sg.media-imdb.com';
     return host + '/suggestion/x/' + encodeURIComponent(String(q).trim()) + '.json?includeVideos=0';
   }
 
-  async function searchImdb(query) {
-    let data = null, lastErr = null;
-    for (const v2 of [false, true]) {
-      try {
-        data = await httpJson(imdbSuggestUrl(query, v2), { headers: { 'Accept': 'application/json' }, timeout: 12000 });
-        lastErr = null;
-        break;
-      } catch (err) { lastErr = err; }
-    }
-    if (!data) throw lastErr || new ApiError('IMDb Suggest no respondió.', 0, null, 'network');
-
-    const list = (data && data.d) || [];
-    return list.map((it) => {
-      const poster = (it.i && (it.i.imageUrl || it.i.imageUrlSmall)) || '';
-      const type = imdbQidToType(it.qid || it.q) || (it.yr ? 'series' : null);
-      return {
-        key: 'imdb:' + it.id,
+  defSource({
+    id: 'imdb',
+    label: 'IMDb Suggest',
+    note: 'Autocompletado público de IMDb · sin clave',
+    search: async (query) => {
+      let data = null, lastErr = null;
+      for (const v2 of [false, true]) {
+        try {
+          data = await httpJson(imdbSuggestUrl(query, v2), { headers: { Accept: 'application/json' }, timeout: 12000 });
+          lastErr = null;
+          break;
+        } catch (err) { lastErr = err; }
+      }
+      if (!data) throw lastErr || new ApiError('IMDb Suggest no respondió.', 0, null, 'network');
+      return ((data && data.d) || []).map((it) => resultOf({
         source: 'imdb',
         imdbId: String(it.id || '').toLowerCase(),
         title: it.l || it.name || '',
-        year: it.y ? String(it.y) : (it.yr ? String(it.yr).slice(0, 4) : ''),
-        mediaType: type,
-        poster: poster,
+        year: it.y || it.yr,
+        mediaType: typeFromImdbQid(it.qid || it.q),
+        poster: (it.i && (it.i.imageUrl || it.i.imageUrlSmall)) || '',
         subtitle: [it.qid || it.q, it.s ? 'con ' + it.s : ''].filter(Boolean).join(' · '),
-        raw: it
+        extra: it
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    }
+  });
+
+  /* ======================================================================
+   * 2) imdbapi.dev — API REST/GraphQL libre sobre datos de IMDb (sin clave)
+   * ==================================================================== */
+  defSource({
+    id: 'imdbapi',
+    label: 'imdbapi.dev',
+    note: 'API REST de IMDb · sin clave',
+    search: async (query) => {
+      const data = await httpJson('https://api.imdbapi.dev/search/titles?query=' + encodeURIComponent(query) + '&limit=20', { timeout: 15000 });
+      const list = (data && (data.titles || data.results)) || [];
+      return list.map((t) => resultOf({
+        source: 'imdbapi',
+        imdbId: String(t.id || t.titleId || '').toLowerCase(),
+        title: t.primaryTitle || t.originalTitle || t.title || '',
+        year: t.startYear || t.year,
+        mediaType: mediaTypeFromImdbApi(t.type),
+        poster: (t.primaryImage && t.primaryImage.url) || t.primaryImageUrl || '',
+        subtitle: [mediaTypeFromImdbApi(t.type) === 'series' ? 'Serie IMDb' : 'Película IMDb',
+                   t.rating && t.rating.aggregateRating ? '★ ' + t.rating.aggregateRating : ''].filter(Boolean).join(' · '),
+        extra: t
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    },
+    detail: async (imdbId) => {
+      const t = await httpJson('https://api.imdbapi.dev/titles/' + encodeURIComponent(imdbId), { timeout: 12000 });
+      if (!t || (!t.primaryTitle && !t.title)) return null;
+      return {
+        title: t.primaryTitle || t.originalTitle || t.title || '',
+        year: cleanYear(t.startYear || t.year),
+        mediaType: mediaTypeFromImdbApi(t.type),
+        poster: (t.primaryImage && t.primaryImage.url) || t.primaryImageUrl || '',
+        overview: t.plot || ''
       };
-    }).filter((r) => /^tt\d+$/.test(r.imdbId));
+    }
+  });
+
+  /* ======================================================================
+   * 3) Cinemeta (Stremio) — metadata de IMDb, pósters y lista de episodios
+   * ==================================================================== */
+  const CINEMETA_HOSTS = ['https://v3-cinemeta.strem.io', 'https://cinemeta-live.strem.io'];
+
+  async function cinemetaSearch(query) {
+    const q = encodeURIComponent(String(query).trim()).replace(/%20/g, '%20');
+    const jobs = ['movie', 'series'].map((type) => {
+      const primary = CINEMETA_HOSTS[0] + '/catalog/' + type + '/top/search=' + q + '.json';
+      return httpJson(primary, { timeout: 12000 }).catch(() => httpJson(CINEMETA_HOSTS[1] + '/catalog/' + type + '/top/search=' + q + '.json', { timeout: 12000 }));
+    });
+    const settled = await Promise.allSettled(jobs);
+    const out = [];
+    settled.forEach((s, i) => {
+      if (s.status !== 'fulfilled' || !s.value) return;
+      const type = i === 0 ? 'movie' : 'series';
+      ((s.value && s.value.metas) || []).forEach((m) => {
+        if (!/^tt\d+$/.test(String(m.id || ''))) return;
+        out.push(resultOf({
+          source: 'cinemeta',
+          imdbId: String(m.id).toLowerCase(),
+          title: m.name || '',
+          year: m.releaseInfo || m.year,
+          mediaType: type,
+          poster: m.poster || '',
+          subtitle: ['Cinemeta', m.imdbRating ? '★ ' + m.imdbRating : '', type === 'series' ? 'Serie' : 'Película'].filter(Boolean).join(' · '),
+          extra: m
+        }));
+      });
+    });
+    if (!out.length && settled.every((s) => s.status === 'rejected')) {
+      throw settled[0].reason || new ApiError('Cinemeta no respondió.', 0, null, 'network');
+    }
+    return out;
   }
 
-  /* --------------------------- TMDB (v3) --------------------------- */
+  async function cinemetaMeta(imdbId, type) {
+    const suffix = '/meta/' + type + '/' + encodeURIComponent(imdbId) + '.json';
+    const data = await httpJson(CINEMETA_HOSTS[0] + suffix, { timeout: 12000 })
+      .catch(() => httpJson(CINEMETA_HOSTS[1] + suffix, { timeout: 12000 }));
+    return (data && data.meta) || null;
+  }
+
+  function seasonsFromCinemeta(meta) {
+    if (!meta || !Array.isArray(meta.videos) || !meta.videos.length) return null;
+    const perSeason = {};
+    meta.videos.forEach((v) => {
+      const s = toInt(v.season, null), e = toInt(v.episode, null);
+      if (s && e) perSeason[s] = Math.max(perSeason[s] || 0, e);
+    });
+    const numbers = Object.keys(perSeason).map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+    if (!numbers.length) return null;
+    return { count: numbers[numbers.length - 1], perSeason: perSeason, source: 'cinemeta' };
+  }
+
+  defSource({
+    id: 'cinemeta',
+    label: 'Cinemeta (Stremio)',
+    note: 'Metadatos y episodios de IMDb · sin clave',
+    search: cinemetaSearch,
+    detail: async (imdbId, hint) => {
+      const types = hint && hint.mediaType === 'movie' ? ['movie'] : hint && hint.mediaType === 'series' ? ['series'] : ['movie', 'series'];
+      for (const t of types) {
+        const meta = await cinemetaMeta(imdbId, t).catch(() => null);
+        if (meta && (meta.name || meta.poster)) {
+          return {
+            title: meta.name || '',
+            year: cleanYear(meta.releaseInfo || meta.year),
+            mediaType: t,
+            poster: meta.poster || '',
+            overview: meta.description || '',
+            seasons: seasonsFromCinemeta(meta)
+          };
+        }
+      }
+      return null;
+    },
+    seriesInfo: async (imdbId) => seasonsFromCinemeta(await cinemetaMeta(imdbId, 'series').catch(() => null))
+  });
+
+  /* ======================================================================
+   * 4) TVMaze — series y episodios (sin clave)
+   * ==================================================================== */
+  function tvmazeShowToResult(show) {
+    const ex = show.externals || {};
+    return resultOf({
+      source: 'tvmaze',
+      imdbId: String(ex.imdb || '').toLowerCase(),
+      title: show.name || '',
+      year: show.premiered || '',
+      mediaType: 'series',
+      poster: (show.image && (show.image.medium || show.image.original)) || '',
+      subtitle: ['TVMaze', show.network && show.network.name, show.status].filter(Boolean).join(' · '),
+      overview: String(show.summary || '').replace(/<[^>]*>/g, ''),
+      extra: show
+    });
+  }
+
+  async function tvmazeLookup(imdbId) {
+    try {
+      return await httpJson('https://api.tvmaze.com/lookup/shows?imdb=' + encodeURIComponent(imdbId), { timeout: 12000 });
+    } catch (_) { return null; }
+  }
+
+  defSource({
+    id: 'tvmaze',
+    label: 'TVMaze',
+    note: 'Series y episodios · sin clave',
+    search: async (query) => {
+      const data = await httpJson('https://api.tvmaze.com/search/shows?q=' + encodeURIComponent(query), { timeout: 12000 });
+      return (Array.isArray(data) ? data : []).map((row) => tvmazeShowToResult(row.show || row))
+        .filter((r) => r.imdbId && /^tt\d+$/.test(r.imdbId));
+    },
+    detail: async (imdbId) => {
+      const show = await tvmazeLookup(imdbId);
+      if (!show) return null;
+      const seasons = await httpJson('https://api.tvmaze.com/shows/' + show.id + '/seasons', { timeout: 12000 }).catch(() => null);
+      let seasonsInfo = null;
+      if (Array.isArray(seasons) && seasons.length) {
+        const perSeason = {};
+        seasons.forEach((s) => {
+          const n = toInt(s.number, null);
+          const order = toInt(s.episodeOrder, null);
+          if (n && order) perSeason[n] = order;
+        });
+        const nums = Object.keys(perSeason).map(Number).sort((a, b) => a - b);
+        if (nums.length) seasonsInfo = { count: nums[nums.length - 1], perSeason: perSeason, source: 'tvmaze' };
+      }
+      const info = tvmazeShowToResult(show);
+      info.seasons = seasonsInfo;
+      return info;
+    },
+    seriesInfo: async (imdbId) => {
+      const show = await tvmazeLookup(imdbId);
+      if (!show) return null;
+      const seasons = await httpJson('https://api.tvmaze.com/shows/' + show.id + '/seasons', { timeout: 12000 });
+      if (!Array.isArray(seasons) || !seasons.length) return null;
+      const perSeason = {};
+      seasons.forEach((s) => {
+        const n = toInt(s.number, null), order = toInt(s.episodeOrder, null);
+        if (n && order) perSeason[n] = order;
+      });
+      const nums = Object.keys(perSeason).map(Number).sort((a, b) => a - b);
+      return nums.length ? { count: nums[nums.length - 1], perSeason: perSeason, source: 'tvmaze' } : null;
+    }
+  });
+
+  /* ======================================================================
+   * 5) Wikidata — resuelve títulos a IDs de IMDb (P345) sin clave
+   * ==================================================================== */
+  const WD_TYPES = {
+    Q11424: 'movie', Q24869: 'movie', Q93204: 'movie', Q202866: 'movie', Q506240: 'movie',
+    Q29168811: 'movie', Q1259759: 'series', Q3464665: 'series', Q5398426: 'series',
+    Q1107: 'series', Q63952888: 'series', Q581714: 'series', Q15416: 'series', Q196600: 'series'
+  };
+
+  async function wikidataSearch(query, limit) {
+    const url = 'https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&origin=*' +
+      '&type=item&limit=' + (limit || 12) +
+      '&language=es&uselang=es&search=' + encodeURIComponent(query);
+    const data = await httpJson(url, { timeout: 15000 });
+    const hits = (data && data.search) || [];
+    if (!hits.length) return { hits: [], entities: {} };
+
+    const ids = hits.map((h) => h.id).join('|');
+    const entUrl = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*' +
+      '&props=claims|labels|descriptions&languages=es|en&ids=' + encodeURIComponent(ids);
+    const ents = await httpJson(entUrl, { timeout: 15000 });
+    return { hits: hits, entities: (ents && ents.entities) || {} };
+  }
+
+  function wikidataEntityToResult(hit, ent) {
+    const claims = (ent && ent.claims) || {};
+    const imdbClaim = claims.P345 && claims.P345[0];
+    const imdbId = imdbClaim && imdbClaim.mainsnak && imdbClaim.mainsnak.datavalue && imdbClaim.mainsnak.datavalue.value;
+    if (!imdbId || !/^tt\d+$/.test(String(imdbId))) return null;
+    const typeClaim = claims.P31 && claims.P31[0];
+    const typeQid = typeClaim && typeClaim.mainsnak && typeClaim.mainsnak.datavalue && typeClaim.mainsnak.datavalue.value &&
+      typeClaim.mainsnak.datavalue.value.id;
+    const label = (ent.labels && ((ent.labels.es && ent.labels.es.value) || (ent.labels.en && ent.labels.en.value))) || hit.label || '';
+    const desc = (ent.descriptions && ((ent.descriptions.es && ent.descriptions.es.value) || (ent.descriptions.en && ent.descriptions.en.value))) || hit.description || '';
+    return resultOf({
+      source: 'wikidata',
+      imdbId: String(imdbId).toLowerCase(),
+      title: label,
+      year: claims.P577 && claims.P577[0] && claims.P577[0].mainsnak && claims.P577[0].mainsnak.datavalue &&
+        cleanYear(claims.P577[0].mainsnak.datavalue.value && claims.P577[0].mainsnak.datavalue.value.time),
+      mediaType: WD_TYPES[typeQid] || null,
+      subtitle: ['Wikidata', desc].filter(Boolean).join(' · '),
+      extra: { qid: hit.id }
+    });
+  }
+
+  defSource({
+    id: 'wikidata',
+    label: 'Wikidata',
+    note: 'Resuelve título → ID de IMDb (P345) · sin clave',
+    search: async (query) => {
+      const { hits, entities } = await wikidataSearch(query);
+      return hits.map((h) => wikidataEntityToResult(h, entities[h.id]))
+        .filter(Boolean)
+        .filter((r) => relevanceOf(r.title, query) < 3);
+    }
+  });
+
+  /* ======================================================================
+   * 6) AniList — anime (sin clave, GraphQL)
+   * ==================================================================== */
+  const ANILIST_QUERY = 'query ($q: String) { Page(perPage: 15) { media(search: $q, type: ANIME, sort: SEARCH_MATCH) {' +
+    ' id idMal format episodes startDate { year } coverImage { large medium }' +
+    ' title { romaji english native } externalLinks { site url } } } }';
+
+  function imdbFromLinks(links) {
+    const arr = links || [];
+    for (let i = 0; i < arr.length; i += 1) {
+      const l = arr[i];
+      const url = String((l && l.url) || '');
+      const m = /imdb\.com\/title\/(tt\d+)/i.exec(url);
+      if (m) return m[1].toLowerCase();
+      if (l && /^imdb$/i.test(String(l.site || ''))) {
+        const m2 = /(tt\d+)/.exec(url);
+        if (m2) return m2[1].toLowerCase();
+      }
+    }
+    return '';
+  }
+
+  defSource({
+    id: 'anilist',
+    label: 'AniList',
+    note: 'Anime · sin clave (GraphQL)',
+    search: async (query) => {
+      const data = await httpJson('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: ANILIST_QUERY, variables: { q: query } }),
+        timeout: 15000
+      });
+      const media = (data && data.data && data.data.Page && data.data.Page.media) || [];
+      return media.map((m) => resultOf({
+        source: 'anilist',
+        imdbId: imdbFromLinks(m.externalLinks),
+        title: (m.title && (m.title.english || m.title.romaji || m.title.native)) || '',
+        year: m.startDate && m.startDate.year,
+        mediaType: 'series',
+        poster: (m.coverImage && (m.coverImage.large || m.coverImage.medium)) || '',
+        subtitle: ['AniList', m.format, m.episodes ? m.episodes + ' ep.' : ''].filter(Boolean).join(' · '),
+        extra: { anilistId: m.id, malId: m.idMal }
+      })).filter((r) => r.title);
+    }
+  });
+
+  /* ======================================================================
+   * 7) IMDbOT — buscador no oficial de IMDb (sin clave, experimental)
+   * ==================================================================== */
+  defSource({
+    id: 'imdbot',
+    label: 'IMDbOT (experimental)',
+    note: 'Servicio no oficial, puede estar caído · sin clave',
+    experimental: true,
+    search: async (query) => {
+      const data = await httpJson('https://imdb.iamidiotareyoutoo.com/search?q=' + encodeURIComponent(query), { timeout: 15000 });
+      const rows = [].concat(
+        Array.isArray(data) ? data : [],
+        (data && (data.data || data.results || data.description || data.titles)) || []
+      );
+      return rows.map((row) => {
+        const imdb = String(row['#IMDB_ID'] || row.imdb_id || row.imdbId || row.id || '');
+        const m = /(tt\d+)/.exec(imdb) || /imdb\.com\/title\/(tt\d+)/i.exec(String(row.url || row.link || ''));
+        if (!m) return null;
+        return resultOf({
+          source: 'imdbot',
+          imdbId: m[1].toLowerCase(),
+          title: row['#TITLE'] || row.title || row.name || '',
+          year: row['#YEAR'] || row.year || row.releaseYear,
+          mediaType: /series|tv/i.test(String(row['#RANK'] || row.type || '')) ? 'series' : null,
+          poster: row['#IMG_POSTER'] || row.poster || row.image || '',
+          subtitle: 'IMDbOT',
+          extra: row
+        });
+      }).filter((r) => r && r.imdbId && r.title);
+    }
+  });
+
+  /* ======================================================================
+   * 8) TMDB v3 — películas y series (clave gratuita)
+   * ==================================================================== */
   function tmdbUrl(path, params) {
     const p = new URLSearchParams(Object.assign({ api_key: String(cfg.tmdbKey || '').trim(), language: cfg.lang || 'es-ES' }, params || {}));
     return 'https://api.themoviedb.org/3' + path + '?' + p.toString();
@@ -1197,123 +1610,507 @@
     return err;
   }
 
-  async function searchTmdb(query) {
-    if (!providerReady('tmdb')) throw missingKeyError('tmdb');
-    let data;
-    try {
-      data = await httpJson(tmdbUrl('/search/multi', { query: query, include_adult: 'false', page: '1' }), { timeout: 15000 });
-    } catch (err) { throw tmdbFriendly(err); }
-
-    return ((data && data.results) || [])
-      .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
-      .map((r) => ({
-        key: 'tmdb:' + r.media_type + ':' + r.id,
-        source: 'tmdb',
-        tmdbId: String(r.id),
-        tmdbKind: r.media_type,
-        imdbId: '',
-        title: r.title || r.name || r.original_title || r.original_name || '',
-        year: String(r.release_date || r.first_air_date || '').slice(0, 4),
-        mediaType: r.media_type,
-        poster: r.poster_path ? 'https://image.tmdb.org/t/p/w185' + r.poster_path : '',
-        subtitle: [r.media_type === 'movie' ? 'Película TMDB' : 'Serie TMDB',
-                   r.original_language ? r.original_language.toUpperCase() : '',
-                   r.vote_average ? '★ ' + r.vote_average.toFixed(1) : ''].filter(Boolean).join(' · '),
-        overview: r.overview || '',
-        raw: r
-      }))
-      .filter((r) => r.title);
+  async function tmdbJson(path, params) {
+    try { return await httpJson(tmdbUrl(path, params), { timeout: 15000 }); }
+    catch (err) { throw tmdbFriendly(err); }
   }
 
-  /** TMDB id → IMDb id (external_ids) */
+  function tmdbItemToResult(r, kind) {
+    return resultOf({
+      source: 'tmdb',
+      tmdbId: String(r.id),
+      tmdbKind: kind,
+      title: r.title || r.name || r.original_title || r.original_name || '',
+      year: r.release_date || r.first_air_date,
+      mediaType: kind === 'tv' ? 'series' : 'movie',
+      poster: r.poster_path ? 'https://image.tmdb.org/t/p/w185' + r.poster_path : '',
+      subtitle: [kind === 'tv' ? 'Serie TMDB' : 'Película TMDB',
+                 r.original_language ? String(r.original_language).toUpperCase() : '',
+                 r.vote_average ? '★ ' + Number(r.vote_average).toFixed(1) : ''].filter(Boolean).join(' · '),
+      overview: r.overview || '',
+      extra: r
+    });
+  }
+
+  defSource({
+    id: 'tmdb',
+    label: 'TMDB v3',
+    keyField: 'tmdbKey',
+    group: 'key',
+    note: 'Películas y series · clave gratuita',
+    docs: 'https://www.themoviedb.org/settings/api',
+    search: async (query) => {
+      const data = await tmdbJson('/search/multi', { query: query, include_adult: 'false', page: '1' });
+      return ((data && data.results) || [])
+        .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+        .map((r) => tmdbItemToResult(r, r.media_type));
+    },
+    detail: async (imdbId, hint) => {
+      if (hint && hint.tmdbId) {
+        const kind = hint.tmdbKind === 'tv' ? 'tv' : 'movie';
+        const d = await tmdbJson('/' + kind + '/' + hint.tmdbId, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, kind);
+      }
+      const found = await tmdbJson('/find/' + encodeURIComponent(imdbId), { external_source: 'imdb_id' }).catch(() => null);
+      if (!found) return null;
+      const movie = (found.movie_results || [])[0];
+      const tv = (found.tv_results || [])[0];
+      if (tv) {
+        const d = await tmdbJson('/tv/' + tv.id, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, 'tv');
+      }
+      if (movie) {
+        const d = await tmdbJson('/movie/' + movie.id, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, 'movie');
+      }
+      return null;
+    },
+    seriesInfo: async (imdbId, hint) => {
+      let kind = hint && hint.tmdbKind, id = hint && hint.tmdbId;
+      if (!id || !/^tt\d+$/.test(imdbId) === false) { /* nada */ }
+      if (!id) {
+        const found = await tmdbJson('/find/' + encodeURIComponent(imdbId), { external_source: 'imdb_id' }).catch(() => null);
+        const tv = found && (found.tv_results || [])[0];
+        if (tv) { id = tv.id; kind = 'tv'; }
+      }
+      if (!id || kind !== 'tv') return null;
+      const d = await tmdbJson('/tv/' + id, {}).catch(() => null);
+      if (!d || !d.number_of_seasons) return null;
+      const perSeason = {};
+      (d.seasons || []).forEach((s) => { if (s.season_number > 0 && s.episode_count) perSeason[s.season_number] = s.episode_count; });
+      return { count: d.number_of_seasons, perSeason: Object.keys(perSeason).length ? perSeason : null, source: 'tmdb' };
+    }
+  });
+
+  function tmdbDetailToInfo(d, kind) {
+    const perSeason = {};
+    (d.seasons || []).forEach((s) => { if (s.season_number > 0 && s.episode_count) perSeason[s.season_number] = s.episode_count; });
+    return {
+      title: d.title || d.name || '',
+      year: cleanYear(d.release_date || d.first_air_date),
+      mediaType: kind === 'tv' ? 'series' : 'movie',
+      poster: d.poster_path ? 'https://image.tmdb.org/t/p/w185' + d.poster_path : '',
+      overview: d.overview || '',
+      tmdbId: String(d.id || ''),
+      tmdbKind: kind,
+      seasons: d.number_of_seasons ? { count: d.number_of_seasons, perSeason: Object.keys(perSeason).length ? perSeason : null, source: 'tmdb' } : null
+    };
+  }
+
   async function tmdbToImdbId(tmdbId, kind) {
-    const path = '/' + (kind === 'tv' ? 'tv' : 'movie') + '/' + encodeURIComponent(tmdbId) + '/external_ids';
     try {
-      const data = await httpJson(tmdbUrl(path, {}), { timeout: 12000 });
-      return data && data.imdb_id ? String(data.imdb_id) : '';
+      const data = await tmdbJson('/' + (kind === 'tv' ? 'tv' : 'movie') + '/' + encodeURIComponent(tmdbId) + '/external_ids', {});
+      return data && data.imdb_id ? String(data.imdb_id).toLowerCase() : '';
     } catch (_) { return ''; }
   }
 
-  /* --------------------------- OMDb --------------------------- */
+  /* ======================================================================
+   * 9) OMDb — IMDb por título o id (clave gratuita)
+   * ==================================================================== */
   function omdbUrl(params) {
     const p = new URLSearchParams(Object.assign({ apikey: String(cfg.omdbKey || '').trim() }, params || {}));
     return 'https://www.omdbapi.com/?' + p.toString();
   }
 
-  function omdbFriendly(err) {
-    if (!(err instanceof ApiError) || err.kind === 'network') return err;
-    const d = err.data && typeof err.data === 'object' ? err.data : {};
+  function omdbFriendly(err, data) {
+    const d = data || (err && err.data) || {};
     const apiMsg = String(d.Error || '');
-    if (/invalid api key/i.test(apiMsg)) return new ApiError('OMDb dice «Invalid API Key». Verifica la clave (las nuevas tardan en activarse).', 401, err.data, 'auth');
-    if (/limit/i.test(apiMsg)) return new ApiError('Has superado el límite diario de OMDb (1.000 peticiones gratuitas).', 429, err.data, 'http');
+    if (/invalid api key/i.test(apiMsg)) return new ApiError('OMDb dice «Invalid API Key». Verifica la clave (las nuevas tardan en activarse).', 401, d, 'auth');
+    if (/limit/i.test(apiMsg)) return new ApiError('Has superado el límite diario de OMDb (1.000 peticiones gratuitas).', 429, d, 'http');
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
     return err;
   }
 
-  async function searchOmdb(query, typeFilter) {
-    if (!providerReady('omdb')) throw missingKeyError('omdb');
-    const params = { s: query, r: 'json' };
-    if (searchTypeFilter === 'movie') params.type = 'movie';
-    if (searchTypeFilter === 'series') params.type = 'series';
-    let data;
-    try { data = await httpJson(omdbUrl(params), { timeout: 15000 }); }
-    catch (err) { throw omdbFriendly(err); }
-
-    if (!data || data.Response === 'False') {
-      const msg = String((data && data.Error) || 'OMDb no devolvió resultados.');
-      if (/invalid api key/i.test(msg)) throw new ApiError('OMDb dice «Invalid API Key». Verifica la clave en Ajustes.', 401, data, 'auth');
-      throw new ApiError(msg, 404, data, 'notfound');
-    }
-    return (data.Search || []).map((r) => ({
-      key: 'omdb:' + (r.imdbID || r.Title),
-      source: 'omdb',
-      imdbId: String(r.imdbID || '').toLowerCase(),
-      title: r.Title || '',
-      year: String(r.Year || '').slice(0, 4),
-      mediaType: normalizeMediaType(r.Type),
-      poster: r.Poster && r.Poster !== 'N/A' ? r.Poster : '',
-      subtitle: [normalizeMediaType(r.Type) === 'series' ? 'Serie' : 'Película', r.Year || ''].filter(Boolean).join(' · '),
-      raw: r
-    })).filter((r) => /^tt\d+$/.test(r.imdbId));
-  }
-
-  /** Ficha completa de OMDb por id IMDb (título, año, tipo, póster, nº temporadas). */
   async function omdbByImdbId(imdbId) {
-    if (!providerReady('omdb') || !/^tt\d+$/.test(imdbId)) return null;
+    if (!sourceUsable('omdb') || !/^tt\d+$/.test(imdbId)) return null;
     try {
       const data = await httpJson(omdbUrl({ i: imdbId, plot: 'short', r: 'json' }), { timeout: 15000 });
       if (!data || data.Response === 'False') return null;
       return {
         title: data.Title || '',
-        year: String(data.Year || '').slice(0, 4),
+        year: cleanYear(data.Year),
         mediaType: normalizeMediaType(data.Type),
         poster: data.Poster && data.Poster !== 'N/A' ? data.Poster : '',
-        seasons: toInt(data.totalSeasons, null),
-        imdbId: String(data.imdbID || imdbId).toLowerCase()
+        overview: data.Plot && data.Plot !== 'N/A' ? data.Plot : '',
+        seasons: toInt(data.totalSeasons, null) ? { count: toInt(data.totalSeasons, null), perSeason: null, source: 'omdb' } : null
       };
     } catch (_) { return null; }
   }
 
-  /** Búsqueda unificada según la fuente activa. */
-  async function runSearch(query) {
-    if (searchSource === 'imdb') return searchImdb(query);
-    if (searchSource === 'tmdb') return searchTmdb(query);
-    if (searchSource === 'omdb') return searchOmdb(query);
-    return [];
+  defSource({
+    id: 'omdb',
+    label: 'OMDb',
+    keyField: 'omdbKey',
+    group: 'key',
+    note: 'Búsqueda por título o id IMDb · clave gratuita',
+    docs: 'https://www.omdbapi.com/apikey.aspx',
+    search: async (query) => {
+      const params = { s: query, r: 'json' };
+      if (searchTypeFilter === 'movie') params.type = 'movie';
+      if (searchTypeFilter === 'series') params.type = 'series';
+      let data;
+      try { data = await httpJson(omdbUrl(params), { timeout: 15000 }); }
+      catch (err) { throw omdbFriendly(err); }
+      if (!data || data.Response === 'False') {
+        const msg = String((data && data.Error) || 'OMDb no devolvió resultados.');
+        if (/invalid api key/i.test(msg)) throw new ApiError('OMDb dice «Invalid API Key». Verifica la clave en Ajustes.', 401, data, 'auth');
+        throw new ApiError(msg, 404, data, 'notfound');
+      }
+      return (data.Search || []).map((r) => resultOf({
+        source: 'omdb',
+        imdbId: String(r.imdbID || '').toLowerCase(),
+        title: r.Title || '',
+        year: r.Year,
+        mediaType: normalizeMediaType(r.Type),
+        poster: r.Poster && r.Poster !== 'N/A' ? r.Poster : '',
+        subtitle: [normalizeMediaType(r.Type) === 'series' ? 'Serie' : 'Película', r.Year || ''].filter(Boolean).join(' · '),
+        extra: r
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    },
+    detail: (imdbId) => omdbByImdbId(imdbId),
+    seriesInfo: async (imdbId) => {
+      const info = await omdbByImdbId(imdbId);
+      return info && info.seasons ? info.seasons : null;
+    }
+  });
+
+  /* ======================================================================
+   * 10) Trakt — búsqueda e IDs cruzados (clave gratuita: client_id)
+   * ==================================================================== */
+  function traktHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'trakt-api-key': String(cfg.traktKey || '').trim(),
+      'trakt-api-version': '2'
+    };
   }
 
-  /* Comprobación de conectividad de cada fuente para el panel «Fuentes de datos». */
+  function traktFriendly(err) {
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    if (err.status === 401 || err.status === 403) return new ApiError('Trakt rechazó el client_id (401/403). Cópialo de trakt.tv → Settings → Your API Apps.', err.status, err.data, 'auth');
+    if (err.status === 420 || err.status === 429) return new ApiError('Trakt: demasiadas peticiones, espera unos segundos.', err.status, err.data, 'http');
+    return err;
+  }
+
+  defSource({
+    id: 'trakt',
+    label: 'Trakt',
+    keyField: 'traktKey',
+    group: 'key',
+    note: 'Búsqueda por título e IDs cruzados · client_id gratuito',
+    docs: 'https://trakt.tv/oauth/applications',
+    search: async (query) => {
+      const jobs = ['movie', 'show'].map((type) =>
+        httpJson('https://api.trakt.tv/search/' + type + '?query=' + encodeURIComponent(query) + '&limit=12', { headers: traktHeaders(), timeout: 15000 })
+          .catch((err) => { throw traktFriendly(err); })
+      );
+      const settled = await Promise.allSettled(jobs);
+      const out = [];
+      settled.forEach((s) => {
+        if (s.status !== 'fulfilled' || !Array.isArray(s.value)) return;
+        s.value.forEach((row) => {
+          const item = row.movie || row.show;
+          if (!item) return;
+          out.push(resultOf({
+            source: 'trakt',
+            imdbId: String((item.ids && item.ids.imdb) || '').toLowerCase(),
+            tmdbId: (item.ids && item.ids.tmdb) || null,
+            tmdbKind: row.movie ? 'movie' : 'tv',
+            title: item.title || '',
+            year: item.year,
+            mediaType: row.movie ? 'movie' : 'series',
+            subtitle: ['Trakt', row.movie ? 'Película' : 'Serie'].join(' · '),
+            extra: row
+          }));
+        });
+      });
+      if (!out.length && settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
+      return out;
+    },
+    detail: async (imdbId) => {
+      const rows = await httpJson('https://api.trakt.tv/search/imdb/' + encodeURIComponent(imdbId), { headers: traktHeaders(), timeout: 12000 }).catch(() => null);
+      const row = Array.isArray(rows) ? rows[0] : null;
+      const item = row && (row.movie || row.show);
+      if (!item) return null;
+      return {
+        title: item.title || '',
+        year: cleanYear(item.year),
+        mediaType: row.movie ? 'movie' : 'series',
+        poster: '',
+        overview: item.overview || '',
+        tmdbId: (item.ids && item.ids.tmdb) || null,
+        tmdbKind: row.movie ? 'movie' : 'tv'
+      };
+    }
+  });
+
+  /* ======================================================================
+   * 11) Simkl — películas, series y anime (clave gratuita: client_id)
+   * ==================================================================== */
+  function simklParams(extra) {
+    return new URLSearchParams(Object.assign({
+      client_id: String(cfg.simklKey || '').trim(),
+      'app-name': 'peerflix-static-watchlist',
+      'app-version': APP_VERSION
+    }, extra || {})).toString();
+  }
+
+  function simklFriendly(err) {
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    if (err.status === 401 || err.status === 403) return new ApiError('Simkl rechazó el client_id (401/403). Copia la clave de simkl.com → Developers.', err.status, err.data, 'auth');
+    return err;
+  }
+
+  function simklItemToResult(item, kind) {
+    const ids = item.ids || {};
+    return resultOf({
+      source: 'simkl',
+      imdbId: String(ids.imdb || '').toLowerCase(),
+      tmdbId: ids.tmdb || ids.tmdbtv || null,
+      tmdbKind: kind === 'tv' ? 'tv' : 'movie',
+      title: item.title || item.name || '',
+      year: item.year || item.release_date,
+      mediaType: kind === 'movie' ? 'movie' : 'series',
+      poster: item.poster || item.poster_url || '',
+      subtitle: ['Simkl', kind === 'movie' ? 'Película' : kind === 'anime' ? 'Anime' : 'Serie'].join(' · '),
+      overview: item.overview || item.description || '',
+      extra: item
+    });
+  }
+
+  defSource({
+    id: 'simkl',
+    label: 'Simkl',
+    keyField: 'simklKey',
+    group: 'key',
+    note: 'Películas, series y anime · client_id gratuito',
+    docs: 'https://simkl.com/settings/developer/',
+    search: async (query) => {
+      const jobs = ['movie', 'tv', 'anime'].map((type) =>
+        httpJson('https://api.simkl.com/search/' + type + '?' + simklParams({ q: query, limit: 12 }), { timeout: 15000 })
+          .catch((err) => { throw simklFriendly(err); })
+      );
+      const settled = await Promise.allSettled(jobs);
+      const out = [];
+      settled.forEach((s, i) => {
+        if (s.status !== 'fulfilled' || !Array.isArray(s.value)) return;
+        const kind = ['movie', 'tv', 'anime'][i];
+        s.value.forEach((item) => {
+          const r = simklItemToResult(item, kind);
+          if (r.title) out.push(r);
+        });
+      });
+      if (!out.length && settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
+      return out;
+    }
+  });
+
+  /* ======================================================================
+   * Búsqueda unificada: una fuente o todas en paralelo
+   * ==================================================================== */
+  const MERGE_FIELDS = ['imdbId', 'poster', 'year', 'overview', 'mediaType', 'tmdbId', 'tmdbKind', 'seasons'];
+
+  function mergeInto(cur, r) {
+    if ((cur.sources || []).indexOf(r.source) === -1) cur.sources.push(r.source);
+    MERGE_FIELDS.forEach((f) => { if (!cur[f] && r[f]) cur[f] = r[f]; });
+    if (!cur.title && r.title) cur.title = r.title;
+    if (!cur.subtitle && r.subtitle) cur.subtitle = r.subtitle;
+    return cur;
+  }
+
+  /**
+   * Fusiona resultados de varias fuentes:
+   *  - 1ª pasada: por ID de IMDb (idéntico → misma ficha).
+   *  - 2ª pasada: las que no traen ID IMDb se absorben en la ficha con el mismo
+   *    título+año (evita duplicados tipo «The Matrix» de TMDB vs IMDb).
+   */
+  function mergeResults(list) {
+    const byId = new Map();
+    const leftovers = [];
+    list.forEach((r) => {
+      if (r.imdbId && /^tt\d+$/.test(r.imdbId)) {
+        const cur = byId.get(r.imdbId);
+        if (cur) mergeInto(cur, r);
+        else byId.set(r.imdbId, Object.assign({}, r, { sources: [r.source] }));
+      } else {
+        leftovers.push(r);
+      }
+    });
+    const byTitle = new Map();
+    byId.forEach((r) => {
+      const k = normTitle(r.title) + '|' + (r.year || '');
+      if (!byTitle.has(k)) byTitle.set(k, []);
+      byTitle.get(k).push(r);
+    });
+    const orphans = [];
+    leftovers.forEach((r) => {
+      const k = normTitle(r.title) + '|' + (r.year || '');
+      const bucket = byTitle.get(k) || (byTitle.get(normTitle(r.title) + '|') || null);
+      if (bucket && bucket.length) mergeInto(bucket[0], r);
+      else {
+        const cur = orphans.find((o) => normTitle(o.title) === normTitle(r.title) && (o.year || '') === (r.year || ''));
+        if (cur) mergeInto(cur, r);
+        else orphans.push(Object.assign({}, r, { sources: [r.source] }));
+      }
+    });
+    return Array.from(byId.values()).concat(orphans);
+  }
+
+  function rankResults(list, query) {
+    return list.slice().sort((a, b) => {
+      const ra = relevanceOf(a.title, query), rb = relevanceOf(b.title, query);
+      if (ra !== rb) return ra - rb;
+      const sa = (a.sources || []).length, sb = (b.sources || []).length;
+      if (sa !== sb) return sb - sa;
+      const ya = toInt(a.year, 0), yb = toInt(b.year, 0);
+      if (ya !== yb) return yb - ya;
+      return a.title.localeCompare(b.title, 'es');
+    });
+  }
+
+  async function searchAllSources(query) {
+    const ids = usableSources();
+    const jobs = ids.map((id) => SOURCES[id].search(query)
+      .then((res) => ({ id: id, res: res || [] }))
+      .catch((err) => ({ id: id, err: err })));
+    const settled = await Promise.all(jobs);
+    const statuses = {};
+    let all = [];
+    settled.forEach((s) => {
+      if (s.err) {
+        statuses[s.id] = { ok: false, message: (s.err && s.err.message) || 'Error', count: 0 };
+        setProvider(s.id, (s.err.kind === 'auth' || s.err.kind === 'config') ? 'off' : 'error',
+          ((s.err && s.err.message) || 'Error').slice(0, 110));
+      } else {
+        statuses[s.id] = { ok: true, message: s.res.length + ' resultados', count: s.res.length };
+        setProvider(s.id, s.res.length ? 'ok' : 'idle',
+          s.res.length ? s.res.length + ' resultados · ' + new Date().toLocaleTimeString('es-ES') : 'Sin resultados');
+      }
+      all = all.concat(s.res || []);
+    });
+    return { results: rankResults(mergeResults(all), query), statuses: statuses, sources: ids };
+  }
+
+  async function searchOneSource(id, query) {
+    const src = SOURCES[id];
+    if (!src) return { results: [], statuses: {} };
+    if (src.keyField && !sourceUsable(id)) throw new ApiError(keyHint(id), 0, null, 'config');
+    const res = await src.search(query);
+    const list = rankResults(mergeResults(res.map((r) => Object.assign({ sources: [r.source] }, r))), query);
+    setProvider(id, list.length ? 'ok' : 'idle',
+      list.length ? list.length + ' resultados · ' + new Date().toLocaleTimeString('es-ES') : 'Sin resultados');
+    return { results: list, statuses: { [id]: { ok: true, message: list.length + ' resultados', count: list.length } }, sources: [id] };
+  }
+
+  /* ======================================================================
+   * Información de series (temporadas y episodios por temporada)
+   * ==================================================================== */
+  const seriesCache = new Map();
+
+  async function seriesInfo(opts) {
+    const o = opts || {};
+    const key = (o.imdbId && /^tt\d+$/.test(o.imdbId) ? o.imdbId : 'tmdb:' + (o.tmdbId || '')) + ':' + (o.mediaType || '');
+    if (!key || key === 'tmdb::') return null;
+    if (seriesCache.has(key)) return seriesCache.get(key);
+    const promise = (async () => {
+      const order = o.mediaType === 'movie' ? [] : ['cinemeta', 'tvmaze', 'tmdb', 'omdb'];
+      const hint = { mediaType: o.mediaType, tmdbId: o.tmdbId, tmdbKind: o.tmdbKind };
+      const found = await trySources(order, (src) => (src.seriesInfo ? src.seriesInfo(o.imdbId, hint) : null));
+      return found || null;
+    })();
+    seriesCache.set(key, promise);
+    return promise;
+  }
+
+  /* ======================================================================
+   * Enriquecimiento por ID de IMDb (póster, título, año, tipo)
+   * ==================================================================== */
+  const detailCache = new Map();
+
+  async function detailByImdbId(imdbId, hint) {
+    if (!/^tt\d+$/.test(imdbId)) return null;
+    if (detailCache.has(imdbId)) return detailCache.get(imdbId);
+    const promise = (async () => {
+      const order = ['omdb', 'imdbapi', 'cinemeta', 'tvmaze', 'tmdb', 'trakt'];
+      return await trySources(order, (src) => (src.detail ? src.detail(imdbId, hint || {}) : null));
+    })();
+    detailCache.set(imdbId, promise);
+    return promise;
+  }
+
+  /* -------------------- estado de las fuentes (UI) -------------------- */
+  function initProviderState() {
+    providerState = {};
+    Object.keys(SOURCES).forEach((id) => {
+      const s = SOURCES[id];
+      providerState[id] = {
+        id: id,
+        name: s.label,
+        note: s.note + (s.experimental ? ' · experimental' : ''),
+        group: s.group,
+        keyField: s.keyField,
+        docs: s.docs,
+        state: 'idle',
+        warned: false,
+        detail: sourceUsable(id) ? 'Lista · pulsa Probar' : 'Sin clave'
+      };
+    });
+  }
+
+  function setProvider(id, state, detail) {
+    const p = providerState[id];
+    if (!p) return;
+    if (state === 'off' && p.warned) return;   // un aviso por sesión y fuente
+    if (state === 'off') p.warned = true;
+    p.state = state;
+    if (detail) p.detail = detail;
+    renderProviders();
+  }
+
+  /** Prueba de conectividad de una fuente concreta. */
   async function testProvider(id) {
-    if (id === 'tmdb' && !providerReady('tmdb')) return { ok: false, message: 'Falta la API key de TMDB.' };
-    if (id === 'omdb' && !providerReady('omdb')) return { ok: false, message: 'Falta la API key de OMDb.' };
+    const s = SOURCES[id];
+    if (!s) return { ok: false, message: 'Fuente desconocida.' };
+    if (!sourceUsable(id)) return { ok: false, message: keyHint(id) };
     try {
-      const res = id === 'imdb' ? await searchImdb('matrix')
-        : id === 'tmdb' ? await searchTmdb('matrix')
-        : await searchOmdb('matrix');
-      if (!res.length) return { ok: false, message: 'Respuesta vacía (¿clave sin activar?).' };
+      const res = await s.search('matrix', {});
+      if (!res || !res.length) return { ok: false, message: 'Sin resultados (¿servicio caído o sin coincidencias?).' };
       return { ok: true, message: res.length + ' resultados de prueba.' };
     } catch (err) {
       return { ok: false, message: (err && err.message) || 'Error desconocido.' };
     }
+  }
+
+  /* Compatibilidad con el resto de la app */
+  const providerReady = (id) => sourceUsable(id);
+  const missingKeyError = (id) => new ApiError(keyHint(id), 0, null, 'config');
+  const sourceLabel = (id) => (id === 'all' ? 'Todas las fuentes' : (SOURCES[id] ? SOURCES[id].label : id));
+
+  /* Se exponen para las pruebas del núcleo */
+  CORE.mergeResults = mergeResults;
+  CORE.rankResults = rankResults;
+  CORE.normTitle = normTitle;
+  CORE.relevanceOf = relevanceOf;
+
+  initProviderState();
+
+  /** Resuelve un ID de IMDb cuando la fuente no lo trae (TMDB, Wikidata, AniList…). */
+  async function resolveImdbId(res) {
+    if (res.imdbId && /^tt\d+$/.test(res.imdbId)) return res.imdbId;
+    if (res.source === 'tmdb' && res.tmdbId) {
+      const id = await tmdbToImdbId(res.tmdbId, res.tmdbKind);
+      if (id) return id;
+    }
+    const title = res.title, year = res.year;
+    const found = await trySources(['wikidata', 'imdbapi', 'cinemeta', 'tvmaze', 'omdb'], async (src, id) => {
+      const list = await src.search(title);
+      const want = normTitle(title);
+      const hit = (list || []).find((r) => r.imdbId && normTitle(r.title) === want && (!year || !r.year || r.year === year)) ||
+        (list || []).find((r) => r.imdbId && normTitle(r.title) === want) ||
+        (list || []).find((r) => r.imdbId && relevanceOf(r.title, title) <= 1);
+      return hit || null;
+    });
+    return found ? found.imdbId : '';
   }
 
   /* ===========================================================================
@@ -1470,6 +2267,8 @@
     $('#cfgRemember').checked = cfg.remember !== false;
     $('#cfgTmdb').value = cfg.tmdbKey || '';
     $('#cfgOmdb').value = cfg.omdbKey || '';
+    $('#cfgTrakt').value = cfg.traktKey || '';
+    $('#cfgSimkl').value = cfg.simklKey || '';
     $('#cfgLang').value = cfg.lang || 'es-ES';
     $('#cfgAutoLoad').checked = cfg.autoLoad !== false;
     $('#cfgFinalNewline').checked = cfg.finalNewline !== false;
@@ -1484,6 +2283,8 @@
     cfg.remember = $('#cfgRemember').checked;
     cfg.tmdbKey = $('#cfgTmdb').value.trim();
     cfg.omdbKey = $('#cfgOmdb').value.trim();
+    cfg.traktKey = $('#cfgTrakt').value.trim();
+    cfg.simklKey = $('#cfgSimkl').value.trim();
     cfg.lang = $('#cfgLang').value || 'es-ES';
     cfg.autoLoad = $('#cfgAutoLoad').checked;
     cfg.finalNewline = $('#cfgFinalNewline').checked;
@@ -1532,24 +2333,80 @@
     renderProviders();
   }
 
+  /* ------------------------ Selector de fuente de búsqueda ------------------------ */
+  function renderSourcePicker() {
+    const sel = $('#sourceSelect');
+    if (!sel) return;
+    const all = Object.keys(SOURCES);
+    const usable = all.filter(sourceUsable);
+    const enabled = usable.filter(isEnabled);
+    const off = usable.filter((id) => !isEnabled(id));
+    const noKey = all.filter((id) => !sourceUsable(id));
+
+    const group = (label, ids, dis) => (ids.length
+      ? '<optgroup label="' + esc(label) + '">' + ids.map((id) =>
+          '<option value="' + id + '"' + (dis ? ' disabled' : '') + '>' + esc(SOURCES[id].label) +
+          (dis ? (dis === 'key' ? ' · sin clave' : ' · desactivada') : '') + '</option>').join('') + '</optgroup>'
+      : '');
+
+    let html = '<option value="all">★ Todas las fuentes (' + enabled.length + ')</option>';
+    html += group('Sin clave', enabled.filter((id) => SOURCES[id].group === 'free'), false);
+    html += group('Con clave gratuita', enabled.filter((id) => SOURCES[id].group === 'key'), false);
+    html += group('Desactivadas en «Fuentes de datos»', off, 'off');
+    html += group('Requieren clave (Ajustes)', noKey, 'key');
+    sel.innerHTML = html;
+
+    let want = searchSource;
+    if (want !== 'all' && all.indexOf(want) === -1) want = 'all';
+    sel.value = want;
+    if (!sel.value && sel.options.length) sel.value = 'all';
+    searchSource = sel.value || 'all';
+
+    const counter = $('#sourceCount');
+    if (counter) counter.textContent = enabled.length + ' activas';
+    const hint = $('#searchHint');
+    if (hint && !searching && !results.length) {
+      hint.textContent = enabled.length
+        ? 'Escribe un título y pulsa Enter: se buscará en ' + (enabled.length === 1 ? sourceLabel(enabled[0]) : enabled.length + ' fuentes a la vez') + '.'
+        : 'No hay fuentes activas: activa alguna en «Fuentes de datos» o añade una clave en Ajustes.';
+    }
+  }
+
   /* --------------------------- Fuentes de datos --------------------------- */
   function renderProviders() {
     const ul = $('#providersList');
     if (!ul) return;
-    const dot = { ok: 'bg-emerald-400', error: 'bg-red-400', busy: 'bg-amber-400', idle: 'bg-zinc-500' };
-    ul.innerHTML = Object.keys(providerState).map((id) => {
-      const p = providerState[id];
-      const configured = providerReady(id);
-      const state = configured ? p.state : 'idle';
-      return '<li class="flex items-center gap-3 px-4 py-2.5">' +
-        '<span class="h-2 w-2 shrink-0 rounded-full ' + dot[state] + (state === 'busy' ? ' animate-pulse' : '') + '"></span>' +
-        '<div class="min-w-0 flex-1">' +
-          '<p class="flex items-center gap-2 text-[12.5px] font-medium text-zinc-200">' + esc(p.name) +
-            (configured ? '' : '<span class="badge badge-zinc">sin clave</span>') + '</p>' +
-          '<p class="truncate text-[11px] text-zinc-500" title="' + esc(p.detail) + '">' + esc(p.detail) + '</p>' +
-        '</div>' +
-        '<button class="btn btn-ghost btn-xs" data-test-provider="' + id + '"' + (configured ? '' : ' disabled') + '>Probar</button>' +
-      '</li>';
+    const dot = { ok: 'bg-emerald-400', error: 'bg-red-400', busy: 'bg-amber-400', off: 'bg-amber-400', idle: 'bg-zinc-500' };
+    const ids = Object.keys(SOURCES);
+    const groups = [
+      { key: 'free', title: 'Sin clave', hint: 'funcionan ya' },
+      { key: 'key', title: 'Con clave gratuita', hint: 'opcionales, añaden cobertura' }
+    ];
+    ul.innerHTML = groups.map((g) => {
+      const items = ids.filter((id) => SOURCES[id].group === g.key);
+      if (!items.length) return '';
+      return '<li class="bg-zinc-900/50 px-4 py-1.5"><p class="text-[10.5px] font-semibold uppercase tracking-wide text-zinc-500">' +
+          esc(g.title) + ' <span class="font-normal normal-case tracking-normal">· ' + esc(g.hint) + '</span></p></li>' +
+        items.map((id) => {
+          const s = SOURCES[id], p = providerState[id] || { state: 'idle', detail: '—' };
+          const usable = sourceUsable(id), enabled = isEnabled(id);
+          const state = (usable && enabled) ? p.state : 'idle';
+          return '<li class="flex items-center gap-2.5 px-4 py-2.5' + (enabled ? '' : ' opacity-55') + '">' +
+            '<span class="h-2 w-2 shrink-0 rounded-full ' + (dot[state] || dot.idle) + (state === 'busy' ? ' animate-pulse' : '') + '"></span>' +
+            '<div class="min-w-0 flex-1">' +
+              '<p class="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-zinc-200">' + esc(s.label) +
+                (usable ? '' : '<span class="badge badge-zinc">sin clave</span>') +
+                (s.experimental ? '<span class="badge badge-amber" data-tip="Servicio comunitario: puede caer sin aviso">experimental</span>' : '') +
+                (enabled ? '' : '<span class="badge badge-zinc">desactivada</span>') +
+              '</p>' +
+              '<p class="truncate text-[11px] text-zinc-500" title="' + esc(p.detail) + '">' + esc(p.detail) + '</p>' +
+            '</div>' +
+            '<label class="flex shrink-0 cursor-pointer items-center" data-tip="Usar en la búsqueda «Todas»">' +
+              '<input type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" data-toggle-source="' + id + '"' +
+              (enabled ? ' checked' : '') + ' /></label>' +
+            '<button class="btn btn-ghost btn-xs shrink-0" data-test-provider="' + id + '"' + (usable ? '' : ' disabled') + '>Probar</button>' +
+          '</li>';
+        }).join('');
     }).join('');
   }
 
@@ -1593,6 +2450,15 @@
     box.innerHTML = visible.map((r, i) => {
       const inList = r.imdbId && used.has(r.imdbId);
       const year = r.year && /^\d{4}/.test(r.year) ? r.year : '';
+      const sources = r.sources || [];
+      const srcBadges = sources.length > 1
+        ? '<span class="badge badge-violet" data-tip="' + esc(sources.map(sourceLabel).join(' · ')) + '">✓ ' + sources.length + ' fuentes</span>'
+        : sources.length === 1
+          ? '<span class="badge badge-zinc">' + esc(sourceLabel(sources[0])) + '</span>'
+          : '';
+      const seasonBadge = (r.seasons && r.seasons.count) ? '<span class="badge badge-teal">' + r.seasons.count + ' temporadas</span>' : '';
+      const resolveBadge = r.imdbId ? '' : '<span class="badge badge-amber">se resolverá el IMDb id</span>';
+      const listBadge = inList ? '<span class="badge badge-emerald">ya en la lista</span>' : '';
       return '<article class="row-enter flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2.5 transition hover:border-zinc-700 hover:bg-zinc-900/70" data-idx="' + i + '">' +
         posterBox(r.poster, r.title) +
         '<div class="min-w-0 flex-1">' +
@@ -1602,8 +2468,7 @@
           '</div>' +
           '<div class="mt-1 flex flex-wrap items-center gap-1.5">' + typeBadge(r.mediaType) +
             '<code class="badge badge-zinc font-mono">' + esc(r.imdbId || (r.tmdbId ? 'tmdb:' + r.tmdbId : '—')) + '</code>' +
-            (inList ? '<span class="badge badge-emerald">ya en la lista</span>' : '') +
-            (r.source === 'tmdb' && !r.imdbId ? '<span class="badge badge-amber">se resolverá el IMDb id</span>' : '') +
+            seasonBadge + listBadge + resolveBadge + srcBadges +
           '</div>' +
           (r.subtitle ? '<p class="mt-1 truncate text-[11px] text-zinc-500">' + esc(r.subtitle) + '</p>' : '') +
           (r.overview ? '<p class="mt-0.5 line-clamp-2 text-[11px] text-zinc-500">' + esc(r.overview) + '</p>' : '') +
@@ -1789,45 +2654,75 @@
     $('#btnClearSearch').classList.toggle('hidden', !q);
     if (!q) { $('#searchHint').textContent = 'Escribe al menos un título para buscar.'; $('#searchInput').focus(); return; }
 
-    if (!providerReady(searchSource)) {
-      const p = providerState[searchSource];
-      setProvider(searchSource, 'error', 'Falta la API key');
-      toast(missingKeyError(searchSource).message, 'warn', p.name);
+    const multi = searchSource === 'all';
+    const usable = usableSources();
+    if (!usable.length) {
+      toast('No hay ninguna fuente activa. Activa al menos una en «Fuentes de datos» o añade una clave en Ajustes.', 'warn', 'Sin fuentes', 8000);
+      openSettings();
+      return;
+    }
+    if (!multi && !sourceUsable(searchSource)) {
+      setProvider(searchSource, 'error', 'Falta la clave');
+      toast(keyHint(searchSource), 'warn', sourceLabel(searchSource));
       openSettings();
       return;
     }
 
     searching = true;
     const ticket = ++searchTicket;
+    const t0 = Date.now();
     renderResults();
-    $('#searchHint').innerHTML = 'Buscando «<strong class="text-zinc-300">' + esc(q) + '</strong>» en ' + esc(providerState[searchSource].name) + '…';
+    $('#searchHint').innerHTML = 'Buscando «<strong class="text-zinc-300">' + esc(q) + '</strong>» en ' +
+      (multi ? 'las ' + usable.length + ' fuentes activas' : esc(sourceLabel(searchSource))) + '…';
+    const chips = $('#sourceChips');
+    if (chips) chips.innerHTML = '';
     setBusy($('#btnSearch'), true);
 
     try {
-      const list = await runSearch(q);
+      const payload = multi ? await searchAllSources(q) : await searchOneSource(searchSource, q);
       if (ticket !== searchTicket) return;              // respuesta obsoleta
-      results = list.slice(0, MAX_RESULTS);
-      setProvider(searchSource, 'ok', results.length + ' resultados · ' + new Date().toLocaleTimeString('es-ES'));
+      searchTookMs = Date.now() - t0;
+      results = payload.results.slice(0, MAX_RESULTS);
+      renderSearchChips(payload);
       if (!results.length) {
-        $('#searchHint').textContent = 'Sin resultados para «' + q + '». Prueba con otra fuente o añade el ID a mano.';
+        $('#searchHint').textContent = 'Sin resultados para «' + q + '» en ' +
+          (multi ? usable.length + ' fuentes' : sourceLabel(searchSource)) + '. Prueba otros términos, activa más fuentes o añade el ID a mano.';
       } else {
-        const extra = list.length > MAX_RESULTS ? ' (mostrando ' + MAX_RESULTS + ')' : '';
-        $('#searchHint').textContent = results.length + ' resultados en ' + providerState[searchSource].name + extra;
+        const extra = payload.results.length > MAX_RESULTS ? ' (mostrando ' + MAX_RESULTS + ' de ' + payload.results.length + ')' : '';
+        const merged = results.filter((r) => (r.sources || []).length > 1).length;
+        $('#searchHint').textContent = results.length + ' resultados' + extra + ' · ' + searchTookMs + ' ms' +
+          (merged ? ' · ' + merged + ' confirmados por varias fuentes' : '');
       }
     } catch (err) {
       if (ticket !== searchTicket) return;
       results = [];
       const msg = (err && err.message) || 'Error desconocido en la búsqueda.';
       const kind = err && err.kind;
-      setProvider(searchSource, 'error', (kind === 'network' ? 'Sin conexión/' : 'Error: ') + msg.slice(0, 90));
+      setProvider(searchSource === 'all' ? 'imdb' : searchSource, 'error', msg.slice(0, 90));
       $('#searchHint').textContent = msg;
       toast(msg, 'error', 'Búsqueda fallida', 9000);
-      if (kind === 'network' && searchSource === 'imdb') {
-        toast('IMDb Suggest es público, pero algunos bloqueadores o el modo estricto del navegador lo bloquean. Configura TMDB u OMDb como alternativa.', 'info', 'Sugerencia', 9000);
-      }
+      if (kind === 'config') openSettings();
     } finally {
       searching = false;
       if (ticket === searchTicket) { renderResults(); setBusy($('#btnSearch'), false); }
+    }
+  }
+
+  /** Chips con el resultado por fuente (incluye las que fallaron). */
+  function renderSearchChips(payload) {
+    const box = $('#sourceChips');
+    if (!box) return;
+    const ids = Object.keys(payload.statuses);
+    box.innerHTML = ids.map((id) => {
+      const st = payload.statuses[id] || { ok: false, count: 0, message: '' };
+      const cls = !st.ok ? 'badge-red' : (st.count ? 'badge-emerald' : 'badge-zinc');
+      return '<span class="badge ' + cls + '" data-tip="' + esc(st.message) + '">' +
+        esc(sourceLabel(id)) + (st.ok ? ' · ' + st.count : ' ✕') + '</span>';
+    }).join('');
+    const failed = ids.filter((id) => payload.statuses[id] && payload.statuses[id].ok === false);
+    if (failed.length) {
+      toast(failed.map((id) => sourceLabel(id) + ': ' + payload.statuses[id].message).join('\n'),
+        'warn', failed.length === 1 ? 'Una fuente no respondió' : failed.length + ' fuentes no respondieron', 9000);
     }
   }
 
@@ -1859,34 +2754,27 @@
   /** Rellena título/año/póster/tipo con OMDb (o TMDB) si faltan datos. */
   async function enrichEntry(entry, opts) {
     const options = opts || {};
-    if (!entry.title || options.force) {
-      if (providerReady('omdb')) {
-        const info = await omdbByImdbId(entry.imdbId);
-        if (info) {
-          if (!entry.title) entry.title = info.title;
-          if (!entry.year) entry.year = info.year;
-          if (!entry.poster) entry.poster = info.poster;
-          if (!entry.mediaType) entry.mediaType = info.mediaType;
-          if (info.seasons) entry.__seasons = info.seasons;
-          return 'omdb';
-        }
-      }
-      if (providerReady('tmdb') && !/^tt\d+$/.test(entry.imdbId)) {
-        return null;
-      }
-    }
-    return null;
+    const needs = !entry.title || !entry.poster || !entry.year || !entry.mediaType || !entry.__seasons || options.force;
+    if (!needs || !entry.imdbId) return null;
+    const info = await detailByImdbId(entry.imdbId, {
+      mediaType: entry.mediaType, tmdbId: entry.tmdbId, tmdbKind: entry.tmdbKind
+    });
+    if (!info) return null;
+    if (!entry.title && info.title) entry.title = info.title;
+    if (!entry.year && info.year) entry.year = info.year;
+    if (!entry.poster && info.poster) entry.poster = info.poster;
+    if (!entry.mediaType && info.mediaType) entry.mediaType = info.mediaType;
+    if (!entry.__overview && info.overview) entry.__overview = info.overview;
+    if (!entry.__seasons && info.seasons) entry.__seasons = info.seasons.count || info.seasons;
+    return info;
   }
 
   /** Resuelve el IMDb id de un resultado (TMDB / OMDb / texto libre). */
   async function ensureImdbId(res) {
     if (res.imdbId && /^tt\d+$/.test(res.imdbId)) return res.imdbId;
-    if (res.source === 'tmdb' && res.tmdbId) {
-      const id = await tmdbToImdbId(res.tmdbId, res.tmdbKind);
-      if (id) { res.imdbId = id.toLowerCase(); return res.imdbId; }
-    }
-    if (res.source === 'omdb' && res.imdbId) return res.imdbId;
-    return '';
+    const id = await resolveImdbId(res);   // TMDB → Wikidata → imdbapi.dev → Cinemeta → TVMaze → OMDb
+    if (id) res.imdbId = id;
+    return id;
   }
 
   /** Botón «Añadir» de una tarjeta de resultado. */
@@ -1905,14 +2793,15 @@
 
     const t = toast('Añadiendo «' + (res.title || res.imdbId) + '»…', 'loading', null, 0);
     if (!entry.imdbId) {
+      t.update('Resolviendo el ID de IMDb…', 'loading', 0);
       const id = await ensureImdbId(res);
       if (!id) {
-        t.update('No se pudo obtener el IMDb id desde TMDB. Revisa la API key o añade el ID a mano.', 'error', 8000);
+        t.update('No se pudo obtener el ID de IMDb desde «' + sourceLabel(res.source) + '». Añádelo a mano con el formato tt1234567.', 'error', 9000);
         return;
       }
       entry.imdbId = id;
     }
-    if (!entry.title || !entry.poster) await enrichEntry(entry);
+    if (!entry.title || !entry.poster || !entry.mediaType) await enrichEntry(entry);
     if (entry.__seasons) delete entry.__seasons;
     const ok = addEntry(entry);
     t.update(ok ? 'Añadido: ' + lineFor(entry) : 'No se añadió (duplicado o ID inválido).', ok ? 'success' : 'warn');
@@ -1944,65 +2833,83 @@
     $('#pickSub').textContent = meta;
     $('#pickImdb').textContent = e.imdbId || 'ID se resolverá con TMDB…';
 
-    /* Selector de temporadas */
-    const seasonsKnown = toInt(e.__seasons, null);
-    const sel = $('#pickSeasonSelect');
-    const num = $('#pickSeasonNum');
-    const currentSeason = toInt(e.season, 1);
-    if (seasonsKnown) {
+    /* Estado inicial de temporadas: lo que ya supiéramos (p. ej. de OMDb) */
+    applySeriesInfo(e.__seasons ? {
+      count: toInt(e.__seasons, null),
+      perSeason: null,
+      source: e.source || 'manual'
+    } : null, e);
+    $('#pickEpFrom').value = String(toInt(e.episode, 1));
+    $('#pickEpTo').value = String(toInt(e.episode, 1));
+    $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Buscando temporadas y episodios…</span>';
+
+    setPickerMode(pickerCtx.mode || (e.season ? (e.episode ? 'episodes' : 'season') : 'series'));
+    openModal('#modalPicker');
+    updatePickerPreview();
+
+    /* Metadatos completos (IMDb id, póster y episodios por temporada) en segundo plano */
+    resolvePickerMeta(e, res).catch(function () {});
+  }
+
+  async function resolvePickerMeta(e, res) {
+    /* 1 · ID de IMDb (si la fuente no lo traía) */
+    if (!e.imdbId) {
+      const id = await resolveImdbId({
+        imdbId: '', title: e.title || (res && res.title), year: e.year || (res && res.year),
+        source: (res && res.source) || e.source, tmdbId: e.tmdbId || (res && res.tmdbId),
+        tmdbKind: e.tmdbKind || (res && res.tmdbKind)
+      });
+      if (id) { e.imdbId = id; $('#pickImdb').textContent = id; }
+    }
+    /* 2 · Ficha básica (póster, año, tipo) */
+    const info = await detailByImdbId(e.imdbId, { mediaType: e.mediaType, tmdbId: e.tmdbId, tmdbKind: e.tmdbKind });
+    if (info) {
+      if (!e.poster && info.poster) { e.poster = info.poster; $('#pickPosterWrap').innerHTML = posterBox(e.poster, e.title, 'h-20 w-14'); }
+      if (!e.year && info.year) e.year = info.year;
+      if (!e.title && info.title) { e.title = info.title; $('#pickTitle').textContent = e.title; }
+      if (!e.mediaType && info.mediaType) e.mediaType = info.mediaType;
+    }
+    if (!e.mediaType) e.mediaType = 'series';
+    $('#pickSub').textContent = [e.year, e.mediaType === 'movie' ? 'Película' : 'Serie'].filter(Boolean).join(' · ');
+
+    /* 3 · Temporadas y episodios por temporada */
+    if (e.mediaType === 'movie') {
+      $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Es una película: se añadirá una única línea.</span>';
+    } else {
+      const hint = await seriesInfo({ imdbId: e.imdbId, tmdbId: e.tmdbId, tmdbKind: e.tmdbKind, mediaType: e.mediaType });
+      applySeriesInfo(hint, e);
+    }
+    updatePickerPreview();
+    return e;
+  }
+
+  /** Vuelca la información de temporadas en el desplegable del modal. */
+  function applySeriesInfo(hint, entry) {
+    const sel = $('#pickSeasonSelect'), num = $('#pickSeasonNum');
+    const e = entry || (pickerCtx && pickerCtx.entry) || {};
+    if (pickerCtx) pickerCtx.seriesHint = hint || null;
+    const known = (hint && toInt(hint.count, null)) || 0;
+    if (known) {
       let opts = '';
-      for (let i = 1; i <= seasonsKnown; i += 1) opts += '<option value="' + i + '">Temporada ' + i + '</option>';
+      for (let i = 1; i <= known; i += 1) {
+        const eps = hint.perSeason && hint.perSeason[i] ? ' — ' + hint.perSeason[i] + ' ep.' : '';
+        opts += '<option value="' + i + '">Temporada ' + i + eps + '</option>';
+      }
       sel.innerHTML = opts;
       sel.classList.remove('hidden');
       num.classList.add('hidden');
-      sel.value = String(clamp(currentSeason, 1, seasonsKnown));
-      $('#pickSeasonInfo').textContent = seasonsKnown + ' temporadas detectadas.';
+      sel.value = String(clamp(toInt(e.season, 1), 1, known));
+      $('#pickSeasonInfo').innerHTML = '<strong class="text-zinc-300">' + known + ' temporada(s)</strong>' +
+        (hint.source ? ' · fuente: ' + esc(sourceLabel(hint.source)) : '');
     } else {
       sel.innerHTML = '';          /* evita arrastrar opciones de la serie anterior */
       sel.classList.add('hidden');
       num.classList.remove('hidden');
-      num.value = String(currentSeason || 1);
-      $('#pickSeasonInfo').textContent = 'Nº de temporadas desconocido: escribe la que quieras.';
-    }
-    $('#pickEpFrom').value = String(toInt(e.episode, 1));
-    $('#pickEpTo').value = String(toInt(e.episode, 1));
-
-    setPickerMode(pickerCtx.mode || (e.season ? (e.episode ? 'episodes' : 'season') : (Object.keys(res).length ? 'series' : 'series')));
-    openModal('#modalPicker');
-
-    /* Completar metadatos (nº de temporadas / póster / IMDb id) en segundo plano */
-    resolvePickerMeta(e, res).then(function () { updatePickerPreview(); }).catch(function () {});
-  }
-
-  async function resolvePickerMeta(e, res) {
-    let changed = false;
-    if (!e.imdbId && res && res.source === 'tmdb' && res.tmdbId) {
-      const id = await tmdbToImdbId(res.tmdbId, res.tmdbKind);
-      if (id) { e.imdbId = id.toLowerCase(); $('#pickImdb').textContent = e.imdbId; changed = true; }
-    }
-    if (!e.poster || !e.year || e.__seasons == null) {
-      const info = providerReady('omdb') && e.imdbId ? await omdbByImdbId(e.imdbId) : null;
-      if (info) {
-        if (!e.poster && info.poster) { e.poster = info.poster; $('#pickPosterWrap').innerHTML = posterBox(e.poster, e.title, 'h-20 w-14'); }
-        if (!e.year && info.year) e.year = info.year;
-        if (!e.title && info.title) { e.title = info.title; $('#pickTitle').textContent = e.title; }
-        if (info.mediaType) e.mediaType = info.mediaType;
-        if (info.seasons) { e.__seasons = info.seasons; changed = true; }
+      num.value = String(toInt(e.season, 1));
+      if (hint === null) {
+        $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Sin datos de temporadas: escribe la que quieras.</span>';
       }
     }
-    if (!e.mediaType) e.mediaType = 'series';
-    if (changed && e.__seasons) {
-      const sel = $('#pickSeasonSelect'), num = $('#pickSeasonNum');
-      let opts = '';
-      for (let i = 1; i <= e.__seasons; i += 1) opts += '<option value="' + i + '">Temporada ' + i + '</option>';
-      sel.innerHTML = opts;
-      sel.classList.remove('hidden');
-      num.classList.add('hidden');
-      sel.value = String(clamp(toInt(e.season, 1), 1, e.__seasons));
-      $('#pickSeasonInfo').textContent = e.__seasons + ' temporadas detectadas.';
-    }
-    const meta = [e.year, e.mediaType === 'movie' ? 'Película' : 'Serie'].filter(Boolean).join(' · ');
-    $('#pickSub').textContent = meta;
   }
 
   /** Líneas que se añadirán según la configuración actual del picker. */
@@ -2038,21 +2945,41 @@
     pre.innerHTML = lines.slice(0, 30).map((l) => esc(l.line)).join('\n') +
       (lines.length > 30 ? '\n<span class="text-zinc-500">… y ' + (lines.length - 30) + ' líneas más</span>' : '');
     const e = pickerCtx && pickerCtx.entry ? pickerCtx.entry : {};
+    const hint = pickerCtx && pickerCtx.seriesHint;
     const warn = [];
-    if (!e.imdbId) warn.push('Falta el ID IMDb (se resolverá con TMDB).');
+    if (!e.imdbId) warn.push('Sin ID de IMDb todavía: se intentará resolver al añadir.');
     if (!String(e.title || '').trim()) warn.push('Sin título: la línea llevará solo el ID.');
+
+    let epInfo = '';
+    if (pickerMode() === 'episodes' && hint) {
+      const season = readSeason();
+      const avail = hint.perSeason && hint.perSeason[season] ? hint.perSeason[season] : null;
+      const from = toInt($('#pickEpFrom').value, 1);
+      const to = clamp(toInt($('#pickEpTo').value, from), from, from + 199);
+      if (avail) {
+        epInfo = avail + ' episodios en la temporada ' + season;
+        if (to > avail) warn.push('La temporada ' + season + ' sólo tiene ' + avail + ' episodios según ' + sourceLabel(hint.source || '') + '.');
+      } else if (hint.count) {
+        epInfo = 'episodios de la temporada ' + season + ': sin datos';
+      }
+    }
     if (lines.length > 1) warn.push(lines.length + ' líneas nuevas.');
     $('#pickWarn').textContent = warn.join(' ');
-    $('#pickEpInfo').textContent = lines.length > 1 ? lines.length + ' episodios' : '';
+    $('#pickEpInfo').textContent = epInfo;
     $('#btnAddPick').disabled = lines.length === 0;
   }
 
   async function confirmPicker() {
     if (!pickerCtx) return;
     if (!pickerCtx.entry.imdbId) {
-      const t = toast('Resolviendo el ID IMDb…', 'loading', null, 0);
-      const id = await ensureImdbId(pickerCtx.res || {});
-      if (!id) { t.update('No se pudo resolver el ID IMDb. Añade el ttID a mano.', 'error', 8000); return; }
+      const t = toast('Resolviendo el ID de IMDb…', 'loading', null, 0);
+      const res = pickerCtx.res || {};
+      const id = await resolveImdbId({
+        imdbId: '', title: pickerCtx.entry.title || res.title, year: pickerCtx.entry.year || res.year,
+        source: res.source || pickerCtx.entry.source, tmdbId: res.tmdbId || pickerCtx.entry.tmdbId,
+        tmdbKind: res.tmdbKind || pickerCtx.entry.tmdbKind
+      });
+      if (!id) { t.update('No se pudo resolver el ID de IMDb. Escríbelo a mano (tt1234567) y vuelve a intentarlo.', 'error', 9000); return; }
       pickerCtx.entry.imdbId = id;
       t.close();
     }
@@ -2099,7 +3026,7 @@
     const raw = $('#manualInput').value;
     if (!raw.trim()) { toast('Escribe al menos un ID o una línea.', 'warn'); return; }
     const lines = raw.replace(/\r\n?/g, '\n').split('\n');
-    const useOmdb = $('#chkEnrich').checked && providerReady('omdb');
+    const useEnrich = $('#chkEnrich').checked;
     const invalid = [];
     let added = 0, comments = 0, dups = 0;
     const t = toast('Procesando ' + lines.length + ' línea(s)…', 'loading', null, 0);
@@ -2118,8 +3045,11 @@
         if (id) entry.imdbId = id.toLowerCase();
       }
       if (!entry.imdbId) { invalid.push(String(line).trim()); continue; }
-      if (useOmdb && (!entry.title || !entry.poster)) await enrichEntry(entry);
-      if (entry.__seasons) delete entry.__seasons;
+      if (useEnrich && (!entry.title || !entry.poster || !entry.mediaType)) {
+        try { await enrichEntry(entry); } catch (_) { /* se añade igual sin metadatos */ }
+      }
+      delete entry.__seasons;
+      delete entry.__overview;
       if (addEntry(entry, { silent: true, silentDup: true })) added += 1; else dups += 1;
       await sleep(120);   // cortesía con las APIs públicas
     }
@@ -2208,7 +3138,7 @@
       touch();
       toast('Lista reemplazada con ' + incomingEntries + ' entrada(s) de ' + file.name + '.', 'success');
     }
-    if (!providerReady('omdb')) toast('Sin API key de OMDb los títulos importados que solo traían un ID se mostrarán sin nombre.', 'info');
+    toast('Las entradas que sólo traían un ID se completarán con las fuentes activas (OMDb, imdbapi.dev, Cinemeta…).', 'info', null, 5000);
   }
 
   /* -------------------------------- GitHub -------------------------------- */
@@ -2292,25 +3222,30 @@
 
   /** Completa títulos/pósters de entradas que solo traen ID (si hay OMDb). */
   async function enrichMissing() {
-    if (!providerReady('omdb')) return;
-    const targets = seq.filter((it) => it.kind === 'entry' && it.entry.imdbId && !it.entry.title).slice(0, 25);
+    const targets = seq.filter((it) => it.kind === 'entry' && it.entry.imdbId &&
+      (!it.entry.title || !it.entry.mediaType || !it.entry.poster)).slice(0, 30);
     if (!targets.length) return;
-    const t = toast('Completando ' + targets.length + ' entrada(s) con OMDb…', 'loading', null, 0);
-    let ok = 0;
+    const t = toast('Completando metadatos de ' + targets.length + ' entrada(s)…', 'loading', null, 0);
+    let ok = 0, missing = 0;
     for (const it of targets) {
-      const info = await omdbByImdbId(it.entry.imdbId);
-      if (info) {
-        it.entry.title = it.entry.title || info.title;
-        it.entry.year = it.entry.year || info.year;
-        it.entry.poster = it.entry.poster || info.poster;
-        it.entry.mediaType = it.entry.mediaType || info.mediaType;
-        if (info.seasons) it.entry.__seasons = info.seasons;
+      const info = await detailByImdbId(it.entry.imdbId, { mediaType: it.entry.mediaType });
+      if (info && (info.title || info.poster)) {
+        if (!it.entry.title && info.title) it.entry.title = info.title;
+        if (!it.entry.year && info.year) it.entry.year = info.year;
+        if (!it.entry.poster && info.poster) it.entry.poster = info.poster;
+        if (!it.entry.mediaType && info.mediaType) it.entry.mediaType = info.mediaType;
+        if (info.seasons && !it.entry.__seasons) it.entry.__seasons = info.seasons.count || info.seasons;
         ok += 1;
+      } else {
+        missing += 1;
       }
-      await sleep(120);
+      await sleep(70);
     }
     touch();
-    t.update(ok ? 'Metadatos completados para ' + ok + ' entrada(s).' : 'OMDb no devolvió datos para esas entradas.', ok ? 'success' : 'warn');
+    t.update(ok ? 'Metadatos completados para ' + ok + '/' + targets.length + ' entrada(s).'
+                : 'Ninguna fuente activa devolvió metadatos para esas entradas.',
+      ok ? 'success' : 'warn');
+    if (missing && !ok) toast('Añade una clave de OMDb o TMDB en Ajustes para ampliar la cobertura de metadatos.', 'info', null, 7000);
   }
 
   async function doPush(opts) {
@@ -2452,11 +3387,17 @@
         ' peticiones restantes' + (core.reset ? ' (se renueva a las ' + new Date(core.reset * 1000).toLocaleTimeString('es-ES') + ')' : '') + '.</p>');
     }
 
-    for (const id of ['imdb', 'tmdb', 'omdb']) {
+    const toTest = Object.keys(SOURCES);
+    linesOut.push('<p class="mt-1"><strong>Fuentes de metadatos</strong> (' + usableSources().length + ' activas de ' + toTest.length + ')</p>');
+    for (const id of toTest) {
+      if (!sourceUsable(id)) {
+        linesOut.push('<p>➖ <strong>' + esc(SOURCES[id].label) + '</strong>: sin clave (no se prueba).</p>');
+        continue;
+      }
       setProvider(id, 'busy', 'Comprobando…');
       const r = await testProvider(id);
       setProvider(id, r.ok ? 'ok' : 'error', r.message);
-      linesOut.push('<p>' + (r.ok ? '✅' : '❌') + ' <strong>' + esc(providerState[id].name) + '</strong>: ' + esc(r.message) + '</p>');
+      linesOut.push('<p>' + (r.ok ? '✅' : '❌') + ' <strong>' + esc(SOURCES[id].label) + '</strong>: ' + esc(r.message) + '</p>');
     }
 
     const anyBad = linesOut.join('').indexOf('❌') !== -1;
@@ -2469,18 +3410,25 @@
    * ======================================================================== */
   function bindEvents() {
     /* --- Selector de fuente --- */
-    $('#sourcePicker').addEventListener('click', (ev) => {
-      const btn = ev.target.closest('button[data-source]');
-      if (!btn) return;
-      searchSource = btn.dataset.source;
-      $$('#sourcePicker button').forEach((b) => b.classList.toggle('active', b === btn));
+    $('#sourceSelect').addEventListener('change', (ev) => {
+      const value = ev.target.value;
+      if (value !== 'all' && !SOURCES[value]) { renderSourcePicker(); return; }   // valor no válido
+      searchSource = value;
+      cfg.searchSource = searchSource;
+      saveConfig();
+      searchTicket += 1;            // invalida las búsquedas en curso
       results = [];
       renderResults();
-      const p = providerState[searchSource];
-      $('#searchHint').textContent = providerReady(searchSource)
-        ? 'Fuente activa: ' + p.name + '. ' + p.note + '.'
-        : p.name + ': ' + p.note + ' — pulsa «Configurar claves» para añadirla.';
-      if (!providerReady(searchSource)) toast(missingKeyError(searchSource).message, 'info', p.name);
+      const chips = $('#sourceChips');
+      if (chips) chips.innerHTML = '';
+      const usable = usableSources();
+      $('#searchHint').textContent = searchSource === 'all'
+        ? 'Se buscará en ' + usable.length + ' fuentes activas: ' + usable.map((id) => SOURCES[id].label).join(', ') + '.'
+        : SOURCES[searchSource].label + ': ' + SOURCES[searchSource].note + '.';
+      if (searchSource !== 'all' && !sourceUsable(searchSource)) {
+        toast(keyHint(searchSource), 'info', sourceLabel(searchSource));
+      }
+      $('#searchInput').focus();
     });
 
     /* --- Filtro por tipo --- */
@@ -2528,7 +3476,7 @@
       if (ed) { editAt(toIdx(ed.dataset.edit)); return; }
     });
 
-    /* --- Fuentes de datos: probar --- */
+    /* --- Fuentes de datos: probar y activar/desactivar --- */
     $('#providersList').addEventListener('click', async (ev) => {
       const btn = ev.target.closest('button[data-test-provider]');
       if (!btn) return;
@@ -2536,7 +3484,21 @@
       setProvider(id, 'busy', 'Comprobando…');
       const r = await testProvider(id);
       setProvider(id, r.ok ? 'ok' : 'error', r.message);
-      toast(r.message, r.ok ? 'success' : 'error', providerState[id].name, r.ok ? 4000 : 9000);
+      toast(r.message, r.ok ? 'success' : 'error', SOURCES[id].label, r.ok ? 4000 : 9000);
+    });
+    $('#providersList').addEventListener('change', (ev) => {
+      const chk = ev.target.closest('input[data-toggle-source]');
+      if (!chk) return;
+      const id = chk.dataset.toggleSource;
+      const all = Object.keys(SOURCES);
+      const set = new Set(Array.isArray(cfg.enabledSources) && cfg.enabledSources.length ? cfg.enabledSources : all);
+      if (chk.checked) set.add(id); else set.delete(id);
+      cfg.enabledSources = all.filter((k) => set.has(k));
+      saveConfig();
+      renderProviders();
+      renderSourcePicker();
+      toast((chk.checked ? 'Fuente activada para la búsqueda: ' : 'Fuente desactivada: ') + SOURCES[id].label,
+        'info', null, 2800);
     });
     $('#btnOpenSettings2').addEventListener('click', openSettings);
 
@@ -2555,6 +3517,8 @@
       saveConfig();
       renderAll();
       closeModal('#modalSettings');
+      renderSourcePicker();
+      renderProviders();
       toast('Ajustes guardados' + (ghConfigured() ? ' para ' + cfg.owner + '/' + cfg.repo : '') + '.',
         'success', null, 3200);
       if (ghConfigured() && !loaded && cfg.autoLoad) doPull({ silent: true });
@@ -2701,15 +3665,21 @@
 
   /* ------------------------------- Arranque ------------------------------- */
   function init() {
-    /* Deja libre el botón «Probar» de cada fuente para no gastar cuota al inicio */
-    providerState.imdb.detail = 'Listo · público, sin API key';
-    providerState.tmdb.detail = providerReady('tmdb') ? 'Clave configurada · pulsa Probar' : 'Sin API key (Ajustes)';
-    providerState.omdb.detail = providerReady('omdb') ? 'Clave configurada · pulsa Probar' : 'Sin API key (Ajustes)';
+    /* Estado inicial de las fuentes: no se llama a ninguna API hasta que lo pida el usuario */
+    initProviderState();
+    Object.keys(SOURCES).forEach((id) => {
+      const p = providerState[id];
+      if (!p) return;
+      p.detail = sourceUsable(id)
+        ? (SOURCES[id].group === 'key' ? 'Clave configurada · pulsa Probar' : SOURCES[id].note + ' · pulsa Probar')
+        : 'Sin configurar en Ajustes';
+    });
 
     $('#commitMsg').value = cfg.commitMsg || '';
     $('#commitMsg').placeholder = 'chore(watchlist): actualizar lista de descargas';
 
     const hadDraft = restoreState();
+    renderSourcePicker();
     renderResults();
     renderAll();
 
@@ -2720,12 +3690,14 @@
     }
 
     if (ghConfigured()) {
-      $('#searchHint').textContent = 'Fuente activa: ' + providerState[searchSource].name +
-        ' (sin API key). Escribe un título y pulsa Enter.';
+      $('#searchHint').textContent = searchSource === 'all'
+        ? 'Se buscará en ' + usableSources().length + ' fuentes públicas a la vez. Escribe un título y pulsa Enter.'
+        : 'Fuente activa: ' + sourceLabel(searchSource) + '. Escribe un título y pulsa Enter.';
       if (cfg.autoLoad && !hadDraft) doPull({ silent: true });
       else if (hadDraft && cfg.autoLoad) toast('Pulsa «Recargar» para leer de nuevo el watchlist.txt de GitHub.', 'info', null, 6000);
     } else {
-      $('#searchHint').textContent = 'Fuente activa: IMDb Suggest (sin API key). Configura tu repositorio para sincronizar.';
+      $('#searchHint').textContent = 'Sin repositorio configurado: puedes buscar y preparar la lista igualmente. ' +
+        'Se buscará en ' + usableSources().length + ' fuentes públicas.';
       if (!hadDraft) {
         openSettings();   /* rellena el formulario con los valores por defecto reales */
         toast('Bienvenido: rellena Owner, Repo y tu PAT para leer y guardar watchlist.txt en GitHub.', 'info', 'Primera configuración', 9000);

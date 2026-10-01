@@ -21,7 +21,8 @@ const CORE = fn(sandbox.window, console, undefined, undefined, undefined);
 assert.ok(CORE, 'PFX_CORE no está expuesto');
 const {
   parseWatchlist, serializeWatchlist, lineFor, makeEntry, splitTitleYear,
-  parseManualLine, diffLines, statsOf, b64EncodeUtf8, b64DecodeUtf8, imdbQidToType
+  parseManualLine, diffLines, statsOf, b64EncodeUtf8, b64DecodeUtf8, imdbQidToType,
+  normTitle, relevanceOf, mergeResults, rankResults
 } = CORE;
 
 let pass = 0, fail = 0;
@@ -203,6 +204,91 @@ t('imdbQidToType mapea tipos de IMDb Suggest', () => {
   assert.equal(imdbQidToType('tvSeries'), 'series');
   assert.equal(imdbQidToType('tvMiniSeries'), 'series');
   assert.equal(imdbQidToType('videoGame'), null);
+});
+
+/* ------------------------------------------------------------------ */
+section('7. Fusión y ordenación de resultados de varias fuentes');
+
+const res = (source, imdbId, title, year, extra) => Object.assign({
+  key: '', source, sources: [], imdbId: imdbId || '', title, year: year || '', mediaType: 'movie',
+  poster: '', subtitle: '', overview: '', tmdbId: null, tmdbKind: null, seasons: null
+}, extra || {});
+
+t('normTitle ignora acentos, mayúsculas y signos', () => {
+  assert.equal(normTitle('Amélie'), 'amelie');
+  assert.equal(normTitle('El Señor de los Anillos: La Comunidad'), 'el senor de los anillos la comunidad');
+  assert.equal(normTitle(null), '');
+});
+t('relevanceOf prioriza coincidencias exactas', () => {
+  assert.equal(relevanceOf('The Matrix', 'The Matrix'), 0);
+  assert.equal(relevanceOf('The Matrix Reloaded', 'the matrix'), 1);
+  assert.equal(relevanceOf('Game of Thrones', 'matrix'), 3);
+});
+t('fusiona la misma película de varias fuentes por ID de IMDb', () => {
+  const out = mergeResults([
+    res('imdb', 'tt0133093', 'The Matrix', '1999'),
+    res('imdbapi', 'tt0133093', 'The Matrix', '1999'),
+    res('cinemeta', 'tt0133093', 'The Matrix', '1999')
+  ]);
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].sources.sort(), ['cinemeta', 'imdb', 'imdbapi']);
+});
+t('absorbe el duplicado sin IMDb id (TMDB) en la ficha con IMDb', () => {
+  const out = mergeResults([
+    res('imdb', 'tt0133093', 'The Matrix', '1999'),
+    res('tmdb', '', 'The Matrix', '1999', { tmdbId: '603', tmdbKind: 'movie', poster: 't/p.jpg' })
+  ]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].imdbId, 'tt0133093');
+  assert.equal(out[0].tmdbId, '603');
+  assert.equal(out[0].poster, 't/p.jpg');
+  assert.deepEqual(out[0].sources.sort(), ['imdb', 'tmdb']);
+});
+t('completa campos que falten con los de cualquier fuente', () => {
+  const out = mergeResults([
+    res('imdb', 'tt0944947', 'Game of Thrones', '2011'),
+    res('tvmaze', 'tt0944947', 'Game of Thrones', '2011', { poster: 'p.jpg', overview: 'sinopsis' }),
+    res('cinemeta', 'tt0944947', 'Game of Thrones', '2011', { seasons: { count: 8, source: 'cinemeta' } })
+  ]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].poster, 'p.jpg');
+  assert.equal(out[0].overview, 'sinopsis');
+  assert.equal(out[0].seasons.count, 8);
+});
+t('no fusiona títulos distintos ni películas con el mismo nombre y año distinto', () => {
+  const out = mergeResults([
+    res('imdb', 'tt0133093', 'The Matrix', '1999'),
+    res('imdb', 'tt0234215', 'The Matrix Reloaded', '2003'),
+    res('imdb', 'tt10838180', 'The Matrix Resurrections', '2021')
+  ]);
+  assert.equal(out.length, 3);
+});
+t('mantiene separados los resultados sin ID aunque compartan título', () => {
+  const out = mergeResults([
+    res('anilist', '', 'Kaiju No. 8', '2024'),
+    res('simkl', '', 'Kaiju No. 8', '2024')
+  ]);
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].sources.sort(), ['anilist', 'simkl']);
+});
+t('ordena por relevancia y, a igualdad, por número de fuentes', () => {
+  const merged = mergeResults([
+    res('imdb', 'tt0133093', 'The Matrix', '1999'),
+    res('imdbapi', 'tt0133093', 'The Matrix', '1999'),
+    res('imdb', 'tt0234215', 'The Matrix Reloaded', '2003'),
+    res('omdb', 'tt9243946', 'El camino', '2019')
+  ]);
+  const ranked = rankResults(merged, 'matrix');
+  assert.equal(ranked[0].title, 'The Matrix');
+  assert.equal(ranked[1].title, 'The Matrix Reloaded');
+  assert.equal(ranked[2].title, 'El camino');
+});
+t('la fusión no muta los objetos originales de entrada', () => {
+  const a = res('imdb', 'tt0133093', 'The Matrix', '1999');
+  const b = res('tmdb', '', 'The Matrix', '1999');
+  mergeResults([a, b]);
+  assert.deepEqual(a.sources, []);
+  assert.deepEqual(b.sources, []);
 });
 
 /* ------------------------------------------------------------------ */

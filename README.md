@@ -20,11 +20,11 @@ y se dispara la GitHub Action que genera los sitios y feeds estáticos.
    | Branch | `main` | rama a leer/escribir |
    | Path | `watchlist.txt` | se crea si no existe |
    | Token PAT | `github_pat_…` | *fine-grained* con **Contents: Read and write** |
-3. Pulsa **Probar conexión** para validar repositorio, token y fuentes de metadatos.
+3. Pulsa **Probar conexión** para validar repositorio, token y **las once fuentes** de metadatos.
 4. Busca títulos, añádelos y pulsa **Guardar en GitHub** (o `Ctrl/⌘ + S`).
 
-Consejo: puedes servirlo en local con `npm start` (`python3 -m http.server 8000`) o con cualquier
-servidor estático. El token solo se envía a `api.github.com`; no hay proxy ni servidor propio.
+Las claves de las APIs de metadatos son **opcionales**: sin configurar nada ya funcionan
+IMDb Suggest, imdbapi.dev, Cinemeta, TVMaze, Wikidata, AniList e IMDbOT.
 
 ## Formato de `watchlist.txt`
 
@@ -38,35 +38,68 @@ servidor estático. El token solo se envía a `api.github.com`; no hay proxy ni 
 
 La edición es **fiel al original**: se preservan comentarios, líneas en blanco, el orden y el texto
 exacto de cada línea (incluidos acentos y `ñ`), y las líneas que no encajan en el formato se marcan
-en rojo en lugar de borrarse.
+en rojo en lugar de borrarse. Las líneas que solo traían un ID no se reescriben aunque la interfaz
+complete sus metadatos.
+
+## Fuentes de metadatos
+
+IMDb **no tiene API oficial**, así que el buscador combina endpoints públicos de IMDb con servicios
+que exponen datos de IMDb y bases alternativas. La opción por defecto, **★ Todas las fuentes**,
+consulta las que estén activas **en paralelo**, fusiona los duplicados, prioriza las coincidencias
+confirmadas por varias fuentes y muestra el estado de cada una.
+
+### Sin clave
+
+| Fuente | Qué aporta |
+|---|---|
+| **IMDb Suggest** | autocompletado público de `imdb.com` (host `v3` con respaldo en `v2`) |
+| **imdbapi.dev** | API REST/GraphQL libre sobre datos de IMDb: búsqueda y ficha |
+| **Cinemeta (Stremio)** | metadatos, pósteres y **lista de episodios** por temporada |
+| **TVMaze** | series y episodios (`/lookup/shows?imdb=`) |
+| **Wikidata** | resuelve *título → ID de IMDb* mediante la propiedad P345 |
+| **AniList** | anime (GraphQL), con enlaces externos a IMDb |
+| **IMDbOT** | buscador comunitario de IMDb (experimental: puede caer sin aviso) |
+
+### Con clave gratuita
+
+| Fuente | Clave | Dónde obtenerla |
+|---|---|---|
+| **TMDB v3** | API key | <https://www.themoviedb.org/settings/api> |
+| **OMDb** | API key | <https://www.omdbapi.com/apikey.aspx> |
+| **Trakt** | `client_id` | <https://trakt.tv/oauth/applications> |
+| **Simkl** | `client_id` | <https://simkl.com/settings/developer/> |
+
+Cada fuente se puede **probar** y **desactivar** individualmente desde el panel «Fuentes de datos».
 
 ## Funciones
 
-- **Buscador multifuente** con 3 proveedores seleccionables:
-  - **IMDb Suggest** — endpoint público de autocompletado, sin API key (con reintento en host alternativo).
-  - **TMDB v3** — `search/multi`, conversión id TMDB → IMDb vía `external_ids` y pósters `image.tmdb.org`.
-  - **OMDb** — búsqueda por título (`s=`) y ficha por código IMDb (`i=`), incluye nº de temporadas.
-  - Filtro por tipo (todo / películas / series) y detección de resultados que ya están en la lista.
-- **Modal de temporada/episodio**: serie completa, temporada `:sN` o rango de episodios `:sN:eM`
-  (con vista previa exacta de las líneas que se crearán y detección de duplicados).
+- **Buscador multifuente** con búsqueda simultánea, fusión por ID de IMDb (y por título+año cuando
+  una fuente no trae ID), chips de estado por fuente, ranking por relevancia y filtro por tipo.
+- **Resolución de IDs**: si una fuente no da el `tt…` (TMDB, Wikidata, AniList), se prueba
+  TMDB `external_ids` → Wikidata → imdbapi.dev → Cinemeta → TVMaze → OMDb. TMDB devuelve a menudo
+  títulos localizados, así que se ignoran acentos y signos antes de comparar.
+- **Modal de temporada/episodio**: serie completa, temporada `:sN` o rango de episodios `:sN:eM`,
+  con **nº de temporadas y de episodios por temporada** (Cinemeta/TVMaze/TMDB/OMDb), aviso si el
+  rango supera lo disponible, vista previa exacta de las líneas y detección de duplicados.
 - **Lista interactiva**: tarjeta por línea con póster, tipo, la línea literal que se escribirá,
   edición y borrado individual.
-- **Vista previa en tiempo real** con numeración de línea, resaltado de sintaxis y marcas de
-  altas/bajas frente al último contenido leído de GitHub.
-- **Alta manual** de IDs, líneas completas, URLs de IMDb/TMDB y comentarios.
-- **Importar / descargar / copiar** el archivo, y descarte de cambios locales.
-- **Errores explícitos** para 401 (token), 403 (permisos o límite), 404 (ruta), 409 (sha desfasado),
-  422 (validación), fallos de red/CORS y *timeouts*, con avisos por *toast*.
+- **Vista previa en tiempo real** con numeración, resaltado de sintaxis y marcas de altas/bajas
+  frente al último contenido leído de GitHub.
+- **Alta manual** de IDs, líneas completas, URLs de IMDb/TMDB y comentarios, con enriquecimiento
+  automático opcional.
+- **Importar / descargar / copiar** el archivo y descartar cambios locales.
+- **Errores explícitos** para 401 (token/clave), 403 (permisos o límite), 404 (ruta), 409 (sha
+  desfasado), 422 (validación), fallos de red/CORS y *timeouts*, con avisos por *toast*.
 
 ## Seguridad
 
 - El PAT se guarda en `localStorage` **solo si marcas «Recordar el token»**; en caso contrario queda
   únicamente en `sessionStorage` (se pierde al cerrar la pestaña).
-- Todas las peticiones van directas del navegador a `api.github.com` (y a las APIs de metadatos).
-  No hay analytics ni terceros.
+- Todas las peticiones van directas del navegador a `api.github.com` y a las APIs de metadatos:
+  no hay proxy, servidor propio ni analytics.
 - Usa tokens *fine-grained* limitados al repositorio y al permiso **Contents: Read and write**.
-- Evita usar la página en equipos compartidos; cualquiera con acceso al perfil del navegador puede
-  leer el token. El botón **Borrar token guardado** lo elimina de inmediato.
+- El botón **Borrar token guardado** elimina el token de inmediato.
+- `window.PFX_STATE()` permite inspeccionar el estado desde la consola **sin exponer el token**.
 
 ## Atajos
 
@@ -81,28 +114,30 @@ en rojo en lugar de borrarse.
 
 ```bash
 npm install     # instala jsdom (única dependencia, de desarrollo)
-npm test        # 37 pruebas de núcleo + 39 de interfaz
+npm test        # 46 pruebas de núcleo + 48 de interfaz
 ```
 
-- `tests/core.test.mjs` extrae el script de `index.html` y valida el parser/serializador: formato de
-  la especificación, *round-trip* exacto, CRLF, Base64 UTF-8 (acentos, `ñ`, emoji, CJK), diff y
-  estadísticas.
-- `tests/ui.test.mjs` monta la página en jsdom con `fetch` simulado (GitHub, IMDb, TMDB y OMDb) y
-  recorre los flujos completos: configuración, carga del watchlist, búsqueda, alta desde resultado,
-  modal temporada/episodio, duplicados, alta manual, guardado con verificación del Base64 enviado y
-  del `sha`, conflictos 404/409 y persistencia local.
+- `tests/core.test.mjs` extrae el script de `index.html` y valida el parser/serializador
+  (*round-trip* exacto, CRLF, Base64 UTF-8 con acentos, `ñ`, emoji y CJK), el diff, las
+  estadísticas y la **fusión/ordenación de resultados multifuente**.
+- `tests/ui.test.mjs` monta la página en jsdom con `fetch` simulado (GitHub y las **11 fuentes**) y
+  recorre los flujos completos: configuración, carga del watchlist, búsqueda múltiple con fusión y
+  ranking, fuente caída que no rompe la búsqueda, resolución de IDs sin `tt…`, modal
+  temporada/episodio con episodios por temporada, duplicados, alta manual, guardado (verificando el
+  Base64 y el `sha` enviados), conflictos 404/409 y persistencia local.
 
 ## Notas técnicas
 
-- **Base64 UTF-8**: se codifica con `TextEncoder` + `btoa` por bloques (nunca `btoa(str)` directo),
-  y se decodifica con `TextDecoder`, para no romper acentos ni `ñ` en la Contents API.
+- **Base64 UTF-8**: se codifica con `TextEncoder` + `btoa` por bloques (nunca `btoa(str)` directo) y
+  se decodifica con `TextDecoder`, para no romper acentos ni `ñ` en la Contents API.
 - **`sha` y conflictos**: se guarda el `sha` de la última lectura y se envía en el `PUT`; si GitHub
-  responde `409`, la app pide recargar antes de reintentar. Si el archivo no existe, el `PUT` se hace
-  sin `sha` y GitHub lo crea.
+  responde `409`, la app pide recargar antes de reintentar. Si el archivo no existe, el `PUT` va sin
+  `sha` y GitHub lo crea.
 - **Archivos grandes**: si la Contents API no devuelve `content` (>1 MB), se usa la Blob API y, como
   último recurso, `raw.githubusercontent.com`.
-- **CORS**: GitHub, TMDB, OMDb e IMDb Suggest permiten peticiones desde el navegador. Si un
-  bloqueador o la política del navegador impide alguna, la app lo detecta y lo explica en pantalla
-  (el único punto realmente sensible es `v3.sg.media-imdb.com`).
+- **CORS**: GitHub, TMDB, OMDb, Trakt, Simkl, TVMaze, Wikidata, AniList e imdbapi.dev permiten
+  peticiones desde el navegador. IMDb Suggest (`v3.sg.media-imdb.com`) es un endpoint no oficial y
+  Cinemeta/IMDbOT son servicios comunitarios: si un bloqueador o la política del navegador los corta,
+  la app lo detecta, lo explica por *toast* y sigue funcionando con el resto de fuentes.
 - **Sin Tailwind** (CDN caído) la app sigue siendo funcional: los componentes críticos están en CSS
   propio dentro del propio `index.html`.
