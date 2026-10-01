@@ -38,8 +38,22 @@ IMDb Suggest, imdbapi.dev, Cinemeta, TVMaze, Wikidata, AniList e IMDbOT.
 
 La edición es **fiel al original**: se preservan comentarios, líneas en blanco, el orden y el texto
 exacto de cada línea (incluidos acentos y `ñ`), y las líneas que no encajan en el formato se marcan
-en rojo en lugar de borrarse. Las líneas que solo traían un ID no se reescriben aunque la interfaz
-complete sus metadatos.
+en rojo en lugar de borrarse.
+
+### El `watchlist.txt` real del proyecto (solo IDs)
+
+El archivo de producción es la plantilla de Peerflix Static: una cabecera de comentarios con la
+documentación del formato y, debajo, **solo IDs** (`tt6933238`, `tt22526100`…, de 7 u 8 dígitos).
+
+- Al cargarlo, la app resuelve **título, año, póster y tipo** con las fuentes activas para que la
+  lista sea legible, pero **no toca el archivo**: las líneas que solo traían un ID se mantienen
+  exactamente como estaban (`pinned`).
+- El botón **«Escribir títulos»** (se activa con contador cuando hay líneas solo-ID) propone
+  `tt6933238 La Última Frontera (2026)`, muestra el antes/después y solo las reescribe si lo
+  confirmas. Los comentarios y el resto de líneas quedan intactos.
+- Las líneas de temporada/episodio (`:s3`, `:s3:e4`) avisan si **no** hay clave de TMDB: según la
+  documentación del propio archivo, la Action necesita `TMDB_API_KEY` en los *secrets* para
+  expandirlas y, sin ella, las ignora con un aviso.
 
 ## Fuentes de metadatos
 
@@ -114,17 +128,20 @@ Cada fuente se puede **probar** y **desactivar** individualmente desde el panel 
 
 ```bash
 npm install     # instala jsdom (única dependencia, de desarrollo)
-npm test        # 46 pruebas de núcleo + 48 de interfaz
+npm test        # 55 pruebas de núcleo + 54 de interfaz
 ```
 
 - `tests/core.test.mjs` extrae el script de `index.html` y valida el parser/serializador
   (*round-trip* exacto, CRLF, Base64 UTF-8 con acentos, `ñ`, emoji y CJK), el diff, las
-  estadísticas y la **fusión/ordenación de resultados multifuente**.
+  estadísticas, la **fusión/ordenación de resultados multifuente** y el **archivo real del
+  proyecto** (22 comentarios + 5 IDs pelados, byte a byte).
 - `tests/ui.test.mjs` monta la página en jsdom con `fetch` simulado (GitHub y las **11 fuentes**) y
   recorre los flujos completos: configuración, carga del watchlist, búsqueda múltiple con fusión y
   ranking, fuente caída que no rompe la búsqueda, resolución de IDs sin `tt…`, modal
   temporada/episodio con episodios por temporada, duplicados, alta manual, guardado (verificando el
-  Base64 y el `sha` enviados), conflictos 404/409 y persistencia local.
+  Base64 y el `sha` enviados), conflictos 404/409, persistencia local y el **flujo completo sobre
+  el watchlist real**: cargarlo sin modificar ni un byte, resolver sus títulos, escribir los nombres
+  con confirmación previa y comprobar que el PUT conserva los 22 comentarios.
 
 ## Notas técnicas
 
