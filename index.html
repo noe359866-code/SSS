@@ -1,0 +1,3883 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Peerflix Static · Gestor de Watchlist</title>
+<meta name="description" content="Panel de administración single-file para editar watchlist.txt en GitHub: busca en IMDb, TMDB y OMDb, construye la lista y sincroniza con el repositorio sin backend." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2334d399'/><path d='M38 26l36 24-36 24z' fill='%2309090b'/></svg>" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  if (window.tailwind) {
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { fontFamily: { mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'] } } }
+    };
+  }
+</script>
+<style>
+  :root{
+    --z950:#09090b; --z900:#18181b; --z800:#27272a; --z700:#3f3f46;
+    --z600:#52525b; --z500:#71717a; --z400:#a1a1aa; --z300:#d4d4d8; --z100:#f4f4f5;
+    --acc:#34d399; --acc2:#14b8a6; --danger:#f87171; --warn:#fbbf24; --info:#60a5fa;
+  }
+  *{ scrollbar-width: thin; scrollbar-color: var(--z700) transparent; }
+  ::-webkit-scrollbar{ width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track{ background: transparent; }
+  ::-webkit-scrollbar-thumb{ background: var(--z700); border-radius: 9999px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover{ background: var(--z600); background-clip: content-box; border: 3px solid transparent; }
+  html, body{ height: 100%; }
+  body{
+    background:
+      radial-gradient(1100px 520px at 82% -12%, rgba(20,184,166,.12), transparent 62%),
+      radial-gradient(900px 480px at 8% -6%, rgba(52,211,153,.09), transparent 58%),
+      var(--z950);
+    background-attachment: fixed;
+  }
+  /* ---------- Componentes ---------- */
+  .card{ background: rgba(24,24,27,.72); border: 1px solid rgba(63,63,70,.75); border-radius: 1rem; box-shadow: 0 10px 30px -20px rgba(0,0,0,.9); backdrop-filter: blur(6px); }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.5rem .8rem; border-radius:.6rem; border:1px solid var(--z700);
+        background: var(--z800); color: var(--z100); font-size:.8125rem; font-weight:500; line-height:1.15; cursor:pointer; white-space:nowrap;
+        transition: background-color .15s, border-color .15s, filter .15s, opacity .15s, transform .06s; }
+  .btn:hover{ background: var(--z700); border-color: var(--z600); }
+  .btn:active{ transform: translateY(1px); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+  .btn:focus-visible{ outline:2px solid var(--acc); outline-offset:2px; }
+  .btn-primary{ background: linear-gradient(135deg, var(--acc), var(--acc2)); border-color: transparent; color:#04211d; font-weight:700; }
+  .btn-primary:hover{ background: linear-gradient(135deg, #4ade9f, #1ec9b6); border-color: transparent; }
+  .btn-danger{ background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.4); color:#fca5a5; }
+  .btn-danger:hover{ background: rgba(248,113,113,.22); border-color: rgba(248,113,113,.6); }
+  .btn-ghost{ background: transparent; border-color: transparent; color: var(--z400); }
+  .btn-ghost:hover{ background: rgba(63,63,70,.5); border-color: transparent; color: var(--z100); }
+  .btn-xs{ padding:.3rem .5rem; font-size:.72rem; border-radius:.5rem; }
+  .btn-icon{ padding:.45rem; width:2.15rem; height:2.15rem; }
+  .input, .select, .textarea{ width:100%; background: rgba(9,9,11,.7); border:1px solid var(--z700); border-radius:.6rem; padding:.5rem .7rem; color:var(--z100);
+        font-size:.875rem; outline:none; transition: border-color .15s, box-shadow .15s; }
+  .input::placeholder, .textarea::placeholder{ color: var(--z600); }
+  .input:focus, .select:focus, .textarea:focus{ border-color: var(--acc); box-shadow: 0 0 0 3px rgba(52,211,153,.16); }
+  .textarea{ font-family: ui-monospace, Menlo, Consolas, monospace; font-size:.8rem; line-height:1.5; resize: vertical; }
+  .select{ appearance:none; background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+           background-repeat:no-repeat; background-position: right .55rem center; background-size: 1rem; padding-right: 2rem; }
+  .select option{ background: var(--z900); }
+  .label{ display:block; font-size:.7rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color: var(--z500); margin-bottom:.3rem; }
+  .badge{ display:inline-flex; align-items:center; gap:.28rem; border-radius:9999px; padding:.16rem .5rem; font-size:.68rem; font-weight:700; letter-spacing:.02em; border:1px solid transparent; }
+  .badge-emerald{ background: rgba(52,211,153,.13); color:#6ee7b7; border-color: rgba(52,211,153,.32); }
+  .badge-teal{ background: rgba(20,184,166,.13); color:#5eead4; border-color: rgba(20,184,166,.32); }
+  .badge-zinc{ background: rgba(113,113,122,.16); color: var(--z300); border-color: rgba(113,113,122,.35); }
+  .badge-sky{ background: rgba(96,165,250,.13); color:#93c5fd; border-color: rgba(96,165,250,.3); }
+  .badge-amber{ background: rgba(251,191,36,.13); color:#fcd34d; border-color: rgba(251,191,36,.3); }
+  .badge-red{ background: rgba(248,113,113,.13); color:#fca5a5; border-color: rgba(248,113,113,.32); }
+  .badge-violet{ background: rgba(167,139,250,.13); color:#c4b5fd; border-color: rgba(167,139,250,.3); }
+  .seg{ display:flex; gap:.22rem; background: rgba(24,24,27,.85); padding:.22rem; border-radius:.75rem; border:1px solid var(--z800); }
+  .seg > button{ flex:1 1 0; padding:.4rem .5rem; border-radius:.55rem; font-size:.76rem; font-weight:600; color: var(--z400); cursor:pointer; transition:.15s; border:1px solid transparent; white-space:nowrap; }
+  .seg > button:hover{ color: var(--z100); background: rgba(63,63,70,.45); }
+  .seg > button.active{ background: rgba(52,211,153,.14); color:#6ee7b7; border-color: rgba(52,211,153,.35); }
+  .seg > button:disabled{ opacity:.4; cursor:not-allowed; }
+  .modal-backdrop{ position:fixed; inset:0; z-index:70; background: rgba(0,0,0,.72); backdrop-filter: blur(5px); display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .modal{ width:100%; max-height:92vh; overflow:auto; background: var(--z900); border:1px solid var(--z700); border-radius:1rem; box-shadow: 0 30px 60px -25px rgba(0,0,0,.95); animation: pop .16s ease-out; }
+  @keyframes pop{ from{ opacity:0; transform: translateY(6px) scale(.985); } to{ opacity:1; transform:none; } }
+  .toast{ display:flex; gap:.65rem; align-items:flex-start; width: min(92vw, 23rem); padding:.7rem .85rem; border-radius:.75rem; background: rgba(24,24,27,.97);
+          border:1px solid var(--z700); box-shadow: 0 18px 40px -18px rgba(0,0,0,.95); animation: slideIn .2s ease-out; }
+  .toast.out{ animation: slideOut .18s ease-in forwards; }
+  @keyframes slideIn{ from{ opacity:0; transform: translateX(14px); } to{ opacity:1; transform:none; } }
+  @keyframes slideOut{ to{ opacity:0; transform: translateX(14px); } }
+  .skeleton{ background: linear-gradient(90deg, #27272a 25%, #3f3f46 37%, #27272a 63%); background-size: 400% 100%; animation: skel 1.4s ease infinite; border-radius:.6rem; }
+  @keyframes skel{ 0%{ background-position:100% 50%; } 100%{ background-position:0 50%; } }
+  .spin{ animation: spin 1s linear infinite; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+  .row-enter{ animation: fadeUp .18s ease-out; }
+  @keyframes fadeUp{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform:none; } }
+  /* ---------- Preview ---------- */
+  pre.code{ tab-size:2; }
+  pre.code .lno{ display:inline-block; width:2.4rem; text-align:right; padding-right:.7rem; color: var(--z600); user-select:none; }
+  pre.code .line{ display:block; white-space:pre-wrap; word-break:break-word; border-radius:.25rem; }
+  pre.code .ln{ white-space:pre-wrap; word-break:break-word; }
+  pre.code .ln-comment{ color: var(--z500); font-style: italic; }
+  pre.code .ln-entry{ color: #e4e4e7; }
+  pre.code .ln-id{ color: #6ee7b7; }
+  pre.code .ln-season{ color: #5eead4; }
+  pre.code .ln-invalid{ color: #fca5a5; background: rgba(248,113,113,.08); }
+  pre.code .ln-blank{ color: transparent; }
+  pre.code .line:hover{ background: rgba(63,63,70,.35); }
+  .mark-add{ background: rgba(52,211,153,.12); box-shadow: inset 2px 0 0 var(--acc); }
+  .mark-del{ background: rgba(248,113,113,.12); box-shadow: inset 2px 0 0 var(--danger); text-decoration: line-through; }
+  .hidden{ display:none !important; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  [data-tip]{ position:relative; }
+  [data-tip]:hover::after{ content: attr(data-tip); position:absolute; bottom: calc(100% + 6px); left:50%; transform: translateX(-50%); background:#18181b; color:#e4e4e7;
+      border:1px solid var(--z700); border-radius:.45rem; padding:.25rem .5rem; font-size:.68rem; white-space:nowrap; z-index:80; pointer-events:none; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body class="min-h-screen text-zinc-100 antialiased selection:bg-emerald-400/25">
+
+<!-- ============================== HEADER ============================== -->
+<header class="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/85 backdrop-blur-md">
+  <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+    <div class="flex min-w-0 items-center gap-3">
+      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 shadow-lg shadow-emerald-500/20">
+        <svg viewBox="0 0 24 24" class="h-5 w-5 text-zinc-950" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72L19 12z"/></svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="truncate text-sm font-semibold tracking-tight sm:text-base">
+          Peerflix&nbsp;Static <span class="font-normal text-zinc-500">·</span> Gestor de Watchlist
+        </h1>
+        <p class="truncate text-[11px] text-zinc-500">
+          Edita <code class="text-zinc-400">watchlist.txt</code> directamente en GitHub — sin backend intermedio
+        </p>
+      </div>
+    </div>
+
+    <div id="statusBadges" class="order-3 flex w-full flex-wrap items-center gap-1.5 sm:order-none sm:w-auto sm:ml-auto"></div>
+
+    <div class="ml-auto flex items-center gap-2 sm:ml-2">
+      <button id="btnPull" class="btn" data-tip="Leer watchlist.txt desde GitHub">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        <span class="hidden sm:inline">Cargar</span>
+      </button>
+      <button id="btnPush" class="btn btn-primary" data-tip="Guardar cambios en GitHub (Ctrl+S)">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        <span class="hidden sm:inline">Guardar</span>
+      </button>
+      <button id="btnSettings" class="btn btn-icon" data-tip="Ajustes de GitHub y APIs" aria-label="Ajustes">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.5.62.87 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================== MAIN ============================== -->
+<main class="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-12">
+
+  <!-- ------------------------- COLUMNA IZQUIERDA ------------------------- -->
+  <div class="space-y-5 lg:col-span-5">
+
+    <!-- Buscador -->
+    <section class="card">
+      <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <h2 class="text-sm font-semibold">Buscador de metadatos</h2>
+        <span class="ml-auto text-[11px] text-zinc-500">IMDb · Cinemeta · TVMaze · Wikidata · AniList · TMDB · OMDb…</span>
+      </div>
+
+      <div class="space-y-3 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="sr-only" for="sourceSelect">Fuente de búsqueda</label>
+          <select id="sourceSelect" class="select flex-1 basis-56"></select>
+          <span id="sourceCount" class="badge badge-zinc">— activas</span>
+        </div>
+
+        <form id="searchForm" class="flex gap-2" autocomplete="off">
+          <div class="relative flex-1">
+            <input id="searchInput" class="input pl-9 pr-8" type="search" placeholder="Busca una película o serie…" aria-label="Texto de búsqueda" />
+            <svg viewBox="0 0 24 24" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <button type="button" id="btnClearSearch" class="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-md p-1 text-zinc-500 hover:bg-zinc-700/60 hover:text-zinc-200" aria-label="Limpiar">
+              <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <button type="submit" id="btnSearch" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            Buscar
+          </button>
+        </form>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="seg !w-auto !rounded-lg !p-[.18rem]" id="typeFilter" aria-label="Filtrar por tipo">
+            <button type="button" data-type="all" class="active !px-3">Todo</button>
+            <button type="button" data-type="movie" class="!px-3">Películas</button>
+            <button type="button" data-type="series" class="!px-3">Series</button>
+          </div>
+          <span id="sourceChips" class="flex flex-wrap gap-1.5"></span>
+          <p id="searchHint" class="text-[11px] leading-snug text-zinc-500"></p>
+        </div>
+
+        <div id="results" class="max-h-[26rem] space-y-2 overflow-y-auto pr-1" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Añadir manualmente -->
+    <section class="card">
+      <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <h2 class="text-sm font-semibold">Añadir manualmente</h2>
+        <span class="ml-auto text-[11px] text-zinc-500">IDs, líneas o URLs</span>
+      </div>
+      <div class="space-y-3 p-4">
+        <textarea id="manualInput" rows="4" class="textarea" spellcheck="false"
+          placeholder="tt0111161 The Shawshank Redemption (1994)&#10;https://www.imdb.com/title/tt0944947/&#10;tt0903747:s2:e5&#10;tt0133093:s1&#10;# un comentario que se preserva"></textarea>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnManualAdd" class="btn">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Añadir a la lista
+          </button>
+          <label class="flex cursor-pointer select-none items-center gap-2 text-[11px] text-zinc-400">
+            <input id="chkEnrich" type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" checked />
+            Completar título, año y póster automáticamente
+          </label>
+        </div>
+        <p class="text-[11px] leading-relaxed text-zinc-500">
+          Acepta IDs <code class="text-zinc-400">tt1234567</code>, líneas completas del formato watchlist, URLs de IMDb/TMDB,
+          <code class="text-zinc-400">:sN</code> / <code class="text-zinc-400">:sN:eM</code> y comentarios <code class="text-zinc-400">#</code>.
+          <strong class="text-emerald-300/90">Para series usa siempre temporada y episodio:</strong>
+          <code class="text-zinc-400">tt0903747:s2:e5</code>.
+        </p>
+      </div>
+    </section>
+
+    <!-- Estado de proveedores -->
+    <section class="card">
+      <div class="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg>
+        <h2 class="text-sm font-semibold">Fuentes de datos</h2>
+        <span class="badge badge-zinc" data-tip="Marca o desmarca las que quieras usar en la búsqueda «Todas»">activar en la búsqueda</span>
+        <button id="btnOpenSettings2" class="btn btn-ghost btn-xs ml-auto">Añadir claves</button>
+      </div>
+      <ul id="providersList" class="divide-y divide-zinc-800/80 text-[12px]"></ul>
+    </section>
+  </div>
+
+  <!-- ------------------------- COLUMNA DERECHA ------------------------- -->
+  <div class="space-y-5 lg:col-span-7">
+
+    <!-- Lista actual -->
+    <section class="card">
+      <div class="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-3">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <h2 class="text-sm font-semibold">Mi watchlist</h2>
+        <span id="wlCount" class="badge badge-zinc">0 entradas</span>
+        <span class="badge badge-zinc" data-tip="Líneas que solo llevan el ID: la web usará el título que escribas">solo ID: la Action lo agradece</span>
+        <div class="ml-auto flex items-center gap-1.5">
+          <button id="btnWriteTitles" class="btn btn-ghost btn-xs" data-tip="Escribir los títulos en las líneas que solo llevan el ID">
+            Escribir títulos<span id="writeTitlesCount" class="ml-1 rounded bg-emerald-400/15 px-1 text-[10px] text-emerald-300"></span>
+          </button>
+          <button id="btnImport" class="btn btn-ghost btn-xs" data-tip="Importar un .txt local">Importar</button>
+          <button id="btnDownload" class="btn btn-ghost btn-xs" data-tip="Descargar watchlist.txt">Descargar</button>
+          <button id="btnCopy" class="btn btn-ghost btn-xs" data-tip="Copiar contenido">Copiar</button>
+          <button id="btnClear" class="btn btn-ghost btn-xs text-red-300/80" data-tip="Vaciar la lista">Vaciar</button>
+          <input id="fileInput" type="file" accept=".txt,text/plain" class="hidden" />
+        </div>
+      </div>
+      <div id="wlStats" class="flex flex-wrap gap-1.5 border-b border-zinc-800/70 px-4 py-2"></div>
+      <div id="list" class="space-y-2 p-4"></div>
+    </section>
+
+    <!-- Vista previa -->
+    <section class="card overflow-hidden">
+      <div class="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-3">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>
+        <h2 class="text-sm font-semibold">Vista previa</h2>
+        <code id="previewPath" class="badge badge-zinc font-mono">watchlist.txt</code>
+        <span id="dirtyBadge"></span>
+        <div class="ml-auto flex items-center gap-1.5">
+          <button id="btnCopyPreview" class="btn btn-ghost btn-icon" data-tip="Copiar el archivo completo" aria-label="Copiar vista previa">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <button id="btnReset" class="btn btn-ghost btn-icon" data-tip="Descartar cambios locales" aria-label="Descartar cambios">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.1-9.4L3 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-800/70 px-4 py-2 text-[11px] text-zinc-500">
+        <span id="previewStats">0 líneas</span>
+        <span id="diffBadges" class="flex flex-wrap gap-1.5"></span>
+        <span id="remoteInfo" class="ml-auto font-mono"></span>
+      </div>
+      <pre class="code max-h-[24rem] overflow-auto bg-zinc-950/60 p-4 font-mono text-[12.5px] leading-6"><code id="previewCode"></code></pre>
+      <div class="space-y-2 border-t border-zinc-800 p-3">
+        <label class="label mb-0" for="commitMsg">Mensaje de commit</label>
+        <input id="commitMsg" class="input font-mono text-xs" spellcheck="false" placeholder="chore(watchlist): actualizar lista de descargas" />
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <button id="btnPush2" class="btn btn-primary flex-1">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+            Guardar en GitHub y lanzar la Action
+          </button>
+          <button id="btnPull2" class="btn sm:w-auto">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            Recargar
+          </button>
+        </div>
+        <p class="text-center text-[11px] text-zinc-500">
+          <code>PUT /repos/…/contents/…</code> con el <code>sha</code> actual · Base64 UTF-8 · dispara las GitHub Actions
+        </p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-10 pt-2 text-[11px] text-zinc-500">
+  <span>Peerflix Static · Watchlist Manager <span class="text-zinc-600">v1.0</span></span>
+  <span class="text-zinc-700">•</span>
+  <span>El token solo se envía a <code class="text-zinc-400">api.github.com</code> desde tu navegador</span>
+  <span class="ml-auto flex flex-wrap gap-3">
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://github.com/settings/tokens?type=beta">Crear PAT</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://developer.themoviedb.org/docs/getting-started">TMDB API</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://www.omdbapi.com/apikey.aspx">OMDb API</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://imdbapi.dev">imdbapi.dev</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://api.tvmaze.com/">TVMaze</a>
+    <a class="hover:text-emerald-300" target="_blank" rel="noopener" href="https://docs.github.com/rest/repos/contents">Docs GitHub Contents</a>
+  </span>
+</footer>
+
+<!-- ============================== MODAL: AJUSTES ============================== -->
+<div id="modalSettings" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+  <div class="modal max-w-2xl">
+    <div class="flex items-center gap-2 border-b border-zinc-800 px-5 py-4">
+      <svg viewBox="0 0 24 24" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+      <h3 id="cfgTitle" class="text-base font-semibold">Ajustes</h3>
+      <button id="btnCloseCfg" class="btn btn-ghost btn-icon ml-auto" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="space-y-5 p-5">
+      <!-- GitHub -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="badge badge-emerald">1 · Repositorio</span>
+          <span class="text-[11px] text-zinc-500">Dónde vive <code>watchlist.txt</code></span>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div><label class="label" for="cfgOwner">Owner / usuario</label><input id="cfgOwner" class="input" placeholder="noe359866-code" spellcheck="false" /></div>
+          <div><label class="label" for="cfgRepo">Repositorio</label><input id="cfgRepo" class="input" placeholder="SSS" spellcheck="false" /></div>
+          <div><label class="label" for="cfgBranch">Rama</label><input id="cfgBranch" class="input" placeholder="main" spellcheck="false" /></div>
+          <div><label class="label" for="cfgPath">Ruta del archivo</label><input id="cfgPath" class="input" placeholder="watchlist.txt" spellcheck="false" /></div>
+        </div>
+      </div>
+
+      <!-- Token -->
+      <div class="space-y-3 border-t border-zinc-800 pt-4">
+        <div class="flex items-center gap-2">
+          <span class="badge badge-teal">2 · Token</span>
+          <span class="text-[11px] text-zinc-500">Fine-grained PAT con <code>Contents: Read and write</code></span>
+        </div>
+        <div class="flex gap-2">
+          <input id="cfgToken" class="input font-mono text-xs" type="password" placeholder="github_pat_… o ghp_…" spellcheck="false" autocomplete="off" />
+          <button id="btnToggleToken" class="btn btn-icon" type="button" aria-label="Mostrar token">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <label class="flex cursor-pointer select-none items-center gap-2 text-[12px] text-zinc-400">
+          <input id="cfgRemember" type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" checked />
+          Recordar el token en este navegador (<code>localStorage</code>). Si lo desmarcas se guarda solo en la sesión.
+        </label>
+        <p class="rounded-lg border border-amber-400/25 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+          El token se guarda localmente en tu navegador y <strong>solo</strong> se envía a <code>api.github.com</code>.
+          No se usa ningún proxy ni servidor intermedio. Evita usar esta página en equipos compartidos.
+        </p>
+        <button id="btnForgetToken" class="btn btn-danger btn-xs">Borrar token guardado</button>
+      </div>
+
+      <!-- APIs de metadatos -->
+      <div class="space-y-3 border-t border-zinc-800 pt-4">
+        <div class="flex items-center gap-2">
+          <span class="badge badge-sky">3 · Metadatos</span>
+          <span class="text-[11px] text-zinc-500">Todas son opcionales: sin ninguna clave ya funcionan IMDb Suggest, imdbapi.dev, Cinemeta, TVMaze, Wikidata y AniList</span>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="label" for="cfgTmdb">TMDB API Key (v3)</label>
+            <input id="cfgTmdb" class="input font-mono text-xs" placeholder="32 caracteres hex" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://www.themoviedb.org/settings/api">Obtener clave de TMDB ↗</a>
+          </div>
+          <div>
+            <label class="label" for="cfgOmdb">OMDb API Key</label>
+            <input id="cfgOmdb" class="input font-mono text-xs" placeholder="8 caracteres" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://www.omdbapi.com/apikey.aspx">Obtener clave de OMDb ↗</a>
+          </div>
+          <div>
+            <label class="label" for="cfgLang">Idioma de TMDB</label>
+            <select id="cfgLang" class="select">
+              <option value="es-ES">Español (es-ES)</option>
+              <option value="es-MX">Español LatAm (es-MX)</option>
+              <option value="en-US">Inglés (en-US)</option>
+              <option value="pt-BR">Portugués (pt-BR)</option>
+              <option value="fr-FR">Francés (fr-FR)</option>
+              <option value="de-DE">Alemán (de-DE)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="cfgTrakt">Trakt client_id</label>
+            <input id="cfgTrakt" class="input font-mono text-xs" placeholder="client_id de Trakt" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://trakt.tv/oauth/applications">Crear app en Trakt ↗</a>
+          </div>
+          <div>
+            <label class="label" for="cfgSimkl">Simkl client_id</label>
+            <input id="cfgSimkl" class="input font-mono text-xs" placeholder="client_id de Simkl" spellcheck="false" autocomplete="off" />
+            <a class="mt-1 inline-block text-[11px] text-emerald-300/80 hover:text-emerald-200" target="_blank" rel="noopener" href="https://simkl.com/settings/developer/">Crear app en Simkl ↗</a>
+          </div>
+          <div class="flex flex-col justify-end gap-2 pb-1">
+            <label class="flex cursor-pointer select-none items-center gap-2 text-[12px] text-zinc-400">
+              <input id="cfgAutoLoad" type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" checked />
+              Cargar <code>watchlist.txt</code> automáticamente al abrir
+            </label>
+            <label class="flex cursor-pointer select-none items-center gap-2 text-[12px] text-zinc-400">
+              <input id="cfgFinalNewline" type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" checked />
+              Añadir salto de línea final al archivo
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test -->
+      <div id="cfgTestResult" class="hidden rounded-lg border px-3 py-2 text-[12px] leading-relaxed"></div>
+
+      <div class="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-4">
+        <button id="btnTestConn" class="btn">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Probar conexión
+        </button>
+        <button id="btnResetCfg" class="btn btn-ghost">Restaurar valores por defecto</button>
+        <div class="ml-auto flex gap-2">
+          <button id="btnCancelCfg" class="btn">Cancelar</button>
+          <button id="btnSaveCfg" class="btn btn-primary">Guardar ajustes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== MODAL: TEMPORADA / EPISODIO ============================== -->
+<div id="modalPicker" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+  <div class="modal max-w-lg">
+    <div class="flex items-start gap-3 border-b border-zinc-800 p-4">
+      <div id="pickPosterWrap" class="h-20 w-14 shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-800"></div>
+      <div class="min-w-0">
+        <h3 id="pickTitle" class="truncate text-base font-semibold">Serie</h3>
+        <p id="pickSub" class="text-[11px] text-zinc-400"></p>
+        <p id="pickImdb" class="mt-1 font-mono text-[11px] text-emerald-300/80"></p>
+      </div>
+      <button id="btnClosePick" class="btn btn-ghost btn-icon ml-auto" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="space-y-4 p-4">
+      <div class="seg" id="pickMode">
+        <button type="button" data-mode="episodes" class="active">Temporada y episodio</button>
+        <button type="button" data-mode="season">Temporada completa</button>
+        <button type="button" data-mode="series">Serie completa</button>
+      </div>
+      <p id="pickRule" class="text-[11px] leading-snug text-emerald-300/80"></p>
+
+      <div id="pickSeasonRow" class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label class="label" for="pickSeasonSelect">Temporada</label>
+          <select id="pickSeasonSelect" class="select"></select>
+          <input id="pickSeasonNum" class="input hidden" type="number" min="1" max="100" step="1" value="1" />
+        </div>
+        <div id="pickSeasonInfo" class="self-end text-[11px] leading-snug text-zinc-500"></div>
+      </div>
+
+      <div id="pickEpRow" class="hidden grid-cols-2 gap-3 sm:grid-cols-3">
+        <div>
+          <label class="label" for="pickEpFrom">Episodio desde</label>
+          <input id="pickEpFrom" class="input" type="number" min="1" max="200" step="1" value="1" />
+        </div>
+        <div>
+          <label class="label" for="pickEpTo">Episodio hasta</label>
+          <input id="pickEpTo" class="input" type="number" min="1" max="200" step="1" value="1" />
+        </div>
+        <div class="self-end text-[11px] leading-snug text-zinc-500" id="pickEpInfo"></div>
+      </div>
+
+      <div>
+        <p class="label">Se añadirá</p>
+        <pre id="pickPreview" class="max-h-40 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 font-mono text-[12px] leading-5 text-emerald-200"></pre>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 border-t border-zinc-800 p-4">
+      <span id="pickWarn" class="text-[11px] text-amber-300/90"></span>
+      <div class="ml-auto flex gap-2">
+        <button id="btnCancelPick" class="btn">Cancelar</button>
+        <button id="btnAddPick" class="btn btn-primary">Añadir a la lista</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== MODAL: CONFIRMACIÓN ============================== -->
+<div id="modalAsk" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+  <div class="modal max-w-md">
+    <div class="space-y-2 p-5">
+      <h3 id="askTitle" class="text-base font-semibold"></h3>
+      <div id="askBody" class="space-y-2 text-sm leading-relaxed text-zinc-400"></div>
+    </div>
+    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 p-4">
+      <button id="askCancel" class="btn">Cancelar</button>
+      <button id="askExtra" class="btn hidden"></button>
+      <button id="askOk" class="btn btn-primary">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== TOASTS ============================== -->
+<div id="toasts" class="pointer-events-none fixed bottom-4 right-4 z-[90] flex flex-col items-end gap-2"></div>
+
+<noscript>
+  <div class="mx-auto max-w-2xl p-6 text-center text-sm text-amber-300">
+    Esta aplicación necesita JavaScript activado para funcionar.
+  </div>
+</noscript>
+
+<script>
+/* =============================================================================
+ *  Peerflix Static · Gestor de watchlist.txt
+ *  Single-file SPA (Vanilla JS + Tailwind CDN) — sin backend.
+ *
+ *  Secciones:
+ *    0. Constantes y almacenamiento seguro
+ *    1. Utilidades (DOM, escape, Base64 UTF-8, ids, debounce)
+ *    2. Núcleo watchlist (parser, serializador, diff, normalización de IDs)
+ *    3. Configuración y estado
+ *    4. HTTP (fetch con timeout) y GitHub REST API
+ *    5. Proveedores de metadatos (IMDb Suggest, TMDB, OMDb)
+ *    6. UI: toasts, modales, listas, vista previa, cabecera
+ *    7. Acciones (buscar, añadir, picker, importar/exportar, pull/push)
+ *    8. Eventos e inicialización
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  /* ===========================================================================
+   * 0 · CONSTANTES
+   * ======================================================================== */
+  const APP_VERSION = '1.0.0';
+  const LS_CFG      = 'peerflix.cfg.v1';
+  const LS_DRAFT    = 'peerflix.draft.v1';
+  const SS_TOKEN    = 'peerflix.token.session';
+  const MAX_RESULTS = 25;
+
+  const DEFAULT_CFG = {
+    owner: '', repo: '', branch: 'main', path: 'watchlist.txt',
+    remember: true, tmdbKey: '', omdbKey: '', traktKey: '', simklKey: '', lang: 'es-ES',
+    autoLoad: true, finalNewline: true, commitMsg: '', searchSource: 'all', enabledSources: null
+  };
+
+  /* Almacenamiento tolerante a fallos (iframes sandbox sin localStorage) */
+  const mem = { local: new Map(), session: new Map() };
+  const area = (kind) => {
+    try { return (kind === 'session' ? window.sessionStorage : window.localStorage) || null; }
+    catch (_) { return null; }
+  };
+  const sGet = (kind, key) => {
+    const st = area(kind);
+    if (st) { try { const v = st.getItem(key); if (v !== null) return v; } catch (_) {} }
+    const m = mem[kind];
+    return m.has(key) ? m.get(key) : null;
+  };
+  const sSet = (kind, key, val) => {
+    mem[kind].set(key, val);
+    const st = area(kind);
+    if (st) { try { st.setItem(key, val); } catch (_) {} }
+  };
+  const sDel = (kind, key) => {
+    mem[kind].delete(key);
+    const st = area(kind);
+    if (st) { try { st.removeItem(key); } catch (_) {} }
+  };
+
+  /* ===========================================================================
+   * 1 · UTILIDADES
+   * ======================================================================== */
+  const $  = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const toInt = (v, fallback) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : fallback; };
+  /* Índices de la lista: el 0 es válido (primer resultado / primera línea). */
+  const toIdx = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 0 ? n : -1; };
+
+  function debounce(fn, ms) {
+    let t = null;
+    return function () {
+      const args = arguments, self = this;
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(self, args), ms);
+    };
+  }
+
+  let uidCounter = 0;
+  function uid() {
+    uidCounter += 1;
+    return 'e' + Date.now().toString(36) + '-' + uidCounter.toString(36) + '-' +
+      Math.random().toString(36).slice(2, 7);
+  }
+
+  /* --- Base64 UTF-8 (evita romper acentos y ñ al escribir en GitHub) --- */
+  function b64EncodeUtf8(str) {
+    const bytes = new TextEncoder().encode(String(str));
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary);
+  }
+
+  function b64DecodeUtf8(b64) {
+    const clean = String(b64 || '').replace(/[\r\n\s]/g, '');
+    if (!clean) return '';
+    const binary = atob(clean);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  }
+
+  /* Acepta también URI-encoding cuando CORS no permitió leer el crudo */
+  function decodeB64OrEmpty(v) {
+    try { return b64DecodeUtf8(v); } catch (_) { return ''; }
+  }
+
+  /* --- Clasificación de tipo de medio desde la fuente de búsqueda --- */
+  function imdbQidToType(qid) {
+    const q = String(qid || '').toLowerCase();
+    if (q === 'movie' || q === 'tvMovie' || q === 'short' || q === 'tvShort') return 'movie';
+    if (q.indexOf('tvseries') === 0 || q.indexOf('tvminiseries') === 0 || q === 'tvspecial' || q === 'tvseries') return 'series';
+    return null;
+  }
+
+  function typeLabel(mediaType) {
+    if (mediaType === 'movie') return 'Película';
+    if (mediaType === 'series') return 'Serie';
+    return 'IMDb';
+  }
+
+  /* ===========================================================================
+   * 2 · NÚCLEO WATCHLIST
+   * ---------------------------------------------------------------------------
+   *  Formatos soportados por línea:
+   *    # comentario
+   *    tt1234567                             → ID simple
+   *    tt1234567 Nombre de la película (Año) → película / serie completa
+   *    tt1234567:s3 Nombre del show Temporada 3
+   *    tt1234567:s3:e4 Nombre del show S03E04
+   * ======================================================================== */
+  const RE_ENTRY    = /^(tt\d{5,10})(?:\s*:\s*s(\d{1,3}))?(?:\s*:\s*e(\d{1,3}))?(?:\s+(.*))?$/i;
+  const RE_IMDB_URL = /imdb\.com\/title\/(tt\d{5,10})/i;
+  const RE_TMDB_URL = /themoviedb\.org\/(movie|tv)\/(\d+)/i;
+  const RE_TRAIL_EP = /\s*[-–—]?\s*S\d{1,3}\s*E\d{1,3}\s*$/i;
+  const RE_TRAIL_SE = /\s*[-–—]?\s*Temporada\s*\d{1,3}\s*$/i;
+  const RE_TITLE_YR = /^(.*?)\s*\((\d{4})(?:\s*[-–—]\s*\d{4})?\)\s*$/;
+
+  /** Separa "Título (2019)" → { title, year } */
+  function splitTitleYear(label) {
+    const m = RE_TITLE_YR.exec(String(label || '').trim());
+    if (m) return { title: m[1].trim(), year: m[2] };
+    return { title: String(label || '').trim(), year: '' };
+  }
+
+  /** Crea una entrada nueva (no parseada de un archivo). */
+  function makeEntry(data) {
+    data = data || {};
+    const e = {
+      id: uid(),
+      imdbId: String(data.imdbId || '').toLowerCase(),
+      season: data.season != null && data.season !== '' ? toInt(data.season, null) : null,
+      episode: data.episode != null && data.episode !== '' ? toInt(data.episode, null) : null,
+      label: typeof data.label === 'string' ? data.label : '',
+      title: data.title || '',
+      year: String(data.year || '').slice(0, 4),
+      poster: data.poster || '',
+      mediaType: data.mediaType || null,
+      source: data.source || 'manual',
+      pinned: data.pinned === true,   /* línea original sin texto: no se inventa texto al serializar */
+      tmdbId: data.tmdbId || null
+    };
+    if (e.episode && !e.season) e.season = 1;
+    return e;
+  }
+
+  /** Texto descriptivo (respeta el texto original si venía del archivo). */
+  function describeEntry(e) {
+    if (e.label && e.label.trim()) return e.label.trim();
+    const title = String(e.title || '').trim();
+    if (e.episode) return (title ? title + ' ' : '') + 'S' + pad2(e.season) + 'E' + pad2(e.episode);
+    if (e.season) return (title ? title + ' ' : '') + 'Temporada ' + e.season;
+    if (!title) return '';
+    return title + (e.year ? ' (' + e.year + ')' : '');
+  }
+
+  /** Parte izquierda de la línea: `tt1234567`, `tt1234567:s3` o `tt1234567:s3:e4`. */
+  function idPartOf(e) {
+    let id = e.imdbId;
+    if (e.season && e.episode) id += ':s' + e.season + ':e' + e.episode;
+    else if (e.season) id += ':s' + e.season;
+    return id;
+  }
+
+  /** Línea final del archivo para una entrada. */
+  function lineFor(e) {
+    const id = idPartOf(e);
+    /* Las líneas cargadas que sólo traían el ID se mantienen intactas:
+       los metadatos que añaden las fuentes son solo para la interfaz. */
+    if (e.pinned) return id;
+    const desc = describeEntry(e);
+    return desc ? id + ' ' + desc : id;
+  }
+
+  /** Cómo quedaría la línea si se le escribiera el nombre tras el ID (solo si hay título). */
+  function lineWithTitle(e) {
+    const id = idPartOf(e);
+    if (!String(e.title || '').trim()) return id;          // sin metadatos no se inventa texto
+    const desc = describeEntry({ label: '', title: e.title, year: e.year, season: e.season, episode: e.episode });
+    return desc ? id + ' ' + desc : id;
+  }
+
+  /** Etiqueta corta para la tarjeta de la lista. */
+  function granularityOf(e) {
+    if (e.season && e.episode) return { text: 'S' + pad2(e.season) + 'E' + pad2(e.episode), kind: 'episode' };
+    if (e.season) return { text: 'Temporada ' + e.season, kind: 'season' };
+    return { text: typeLabel(e.mediaType), kind: e.mediaType || 'plain' };
+  }
+
+  function keyOf(e) {
+    return e.imdbId + ':' + (e.season || '') + ':' + (e.episode || '');
+  }
+
+  /**
+   * Parsea el contenido completo del archivo a una secuencia ordenada que
+   * preserva comentarios y líneas en blanco (round-trip fiel al remoto).
+   * @returns {Array<{kind:'entry'|'comment'|'blank'|'invalid', entry?:Object, text?:string}>}
+   */
+  function parseWatchlist(text) {
+    const raw = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    let lines = raw.split('\n');
+    /* Un salto final no debe generar una línea vacía extra */
+    if (lines.length && lines[lines.length - 1] === '') lines = lines.slice(0, -1);
+
+    return lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return { kind: 'blank', text: '' };
+      if (trimmed.charAt(0) === '#') return { kind: 'comment', text: trimmed };
+
+      const m = RE_ENTRY.exec(trimmed);
+      if (m) {
+        const label = (m[4] || '').trim();
+        let display = label;
+        let mediaType = null;
+        if (m[2] && m[3]) mediaType = 'series';
+        else if (m[2]) mediaType = 'series';
+        if (mediaType === 'series') display = display.replace(RE_TRAIL_EP, '').replace(RE_TRAIL_SE, '');
+        const ty = splitTitleYear(display);
+        return {
+          kind: 'entry',
+          entry: makeEntry({
+            imdbId: m[1].toLowerCase(),
+            season: m[2] || null,
+            episode: m[3] || null,
+            label,
+            title: ty.title,
+            year: ty.year,
+            mediaType,
+            source: 'remote',
+            pinned: !label
+          })
+        };
+      }
+      return { kind: 'invalid', text: trimmed };
+    });
+  }
+
+  /** Serializa la secuencia al texto final del archivo. */
+  function serializeWatchlist(seq, opts) {
+    const finalNewline = !opts || opts.finalNewline !== false;
+    const lines = seq.map((item) => {
+      if (item.kind === 'entry') return lineFor(item.entry);
+      return item.text != null ? item.text : '';
+    });
+    return lines.join('\n') + (finalNewline && lines.length ? '\n' : '');
+  }
+
+  /** Conteo rápido de entradas por granularidad/tipo. */
+  function statsOf(seq) {
+    const s = { entries: 0, movies: 0, series: 0, seasons: 0, episodes: 0, unknown: 0, comments: 0, invalid: 0, blanks: 0, lines: seq.length };
+    seq.forEach((it) => {
+      if (it.kind === 'entry') {
+        s.entries += 1;
+        const e = it.entry;
+        if (e.season && e.episode) s.episodes += 1;
+        else if (e.season) s.seasons += 1;
+        else if (e.mediaType === 'movie') s.movies += 1;
+        else if (e.mediaType === 'series') s.series += 1;
+        else s.unknown += 1;   /* tipo aún desconocido: se completa con OMDb/TMDB */
+      } else if (it.kind === 'comment') s.comments += 1;
+      else if (it.kind === 'invalid') s.invalid += 1;
+      else s.blanks += 1;
+    });
+    return s;
+  }
+
+  /** Diff por multiconjunto: {added:[], removed:[]} */
+  function diffLines(beforeText, afterText) {
+    const count = (txt) => {
+      const map = new Map();
+      String(txt || '').replace(/\r\n?/g, '\n').split('\n').forEach((l) => {
+        if (l === '') return;
+        map.set(l, (map.get(l) || 0) + 1);
+      });
+      return map;
+    };
+    const a = count(beforeText), b = count(afterText);
+    const added = [], removed = [];
+    b.forEach((n, l) => { const d = n - (a.get(l) || 0); for (let i = 0; i < d; i += 1) added.push(l); });
+    a.forEach((n, l) => { const d = n - (b.get(l) || 0); for (let i = 0; i < d; i += 1) removed.push(l); });
+    return { added, removed };
+  }
+
+  /**
+   * Normaliza una línea escrita a mano: acepta IDs sueltos, líneas watchlist,
+   * URLs de IMDb/TMDB y comentarios.
+   * @returns {{type:'entry'|'comment'|'invalid', entry?:Object, text?:string}}
+   */
+  function parseManualLine(line, ctx) {
+    const raw = String(line || '').trim();
+    if (!raw) return { type: 'invalid', text: raw };
+    if (raw.charAt(0) === '#') return { type: 'comment', text: raw };
+
+    const mImdb = RE_IMDB_URL.exec(raw);
+    if (mImdb) return { type: 'entry', entry: makeEntry({ imdbId: mImdb[1], source: 'manual' }) };
+
+    const mTmdb = RE_TMDB_URL.exec(raw);
+    if (mTmdb) {
+      return {
+        type: 'entry',
+        entry: makeEntry({
+          imdbId: '',
+          mediaType: mTmdb[1] === 'tv' ? 'series' : 'movie',
+          tmdbId: mTmdb[2],
+          source: 'tmdb-url'
+        })
+      };
+    }
+
+    const m = RE_ENTRY.exec(raw);
+    if (m) {
+      const label = (m[4] || '').trim();
+      const ty = splitTitleYear(label);
+      return {
+        type: 'entry',
+        entry: makeEntry({
+          imdbId: m[1].toLowerCase(), season: m[2] || null, episode: m[3] || null,
+          label, title: ty.title, year: ty.year,
+          mediaType: (m[2] || m[3]) ? 'series' : null,
+          source: (ctx && ctx.source) || 'manual'
+        })
+      };
+    }
+    return { type: 'invalid', text: raw };
+  }
+
+  /* Expuesto para tests automáticos del núcleo (Node) */
+  const CORE = {
+    parseWatchlist, serializeWatchlist, lineFor, describeEntry, makeEntry, splitTitleYear,
+    parseManualLine, diffLines, statsOf, keyOf, granularityOf, idPartOf, lineWithTitle,
+    b64EncodeUtf8, b64DecodeUtf8, imdbQidToType, DEFAULT_CFG
+  };
+  if (typeof window !== 'undefined') window.PFX_CORE = CORE;
+
+  /* ===========================================================================
+   * 3 · CONFIGURACIÓN Y ESTADO
+   * ======================================================================== */
+  let cfg   = loadConfig();
+  let token = loadToken();
+
+  let seq = [];             // Secuencia editable (entradas + comentarios + blancos)
+  let remoteText = '';      // Último contenido leído de GitHub (baseline del diff)
+  let remoteSha = null;     // sha del archivo remoto
+  let remoteMeta = null;    // { path, htmlUrl, fetchedAt, author }
+  let loaded = false;       // ¿Hay algo cargado (remoto o local)?
+  let results = [];         // Resultados de búsqueda visibles
+  let searchSource = (cfg.searchSource || 'all');
+  let searchTookMs = 0;
+  let searchTypeFilter = 'all';
+  let searchTicket = 0;     // Evita respuestas obsoletas de búsquedas anteriores
+  let searching = false;
+  let pickerCtx = null;     // Contexto del modal temporada/episodio
+  let askResolver = null;   // Promesa del modal de confirmación
+  let providerState = {};   // Estado en vivo de cada fuente (se crea en la sección 5)
+
+  let webFallback = false;  // El fetch se bloqueó por CORS/red → se sugiere abrir en ventana
+
+  function loadConfig() {
+    const out = Object.assign({}, DEFAULT_CFG);
+    try {
+      const raw = sGet('local', LS_CFG);
+      if (raw) Object.assign(out, JSON.parse(raw));
+    } catch (_) { /* JSON corrupto: se usan los valores por defecto */ }
+    return out;
+  }
+
+  function loadToken() {
+    const fromSession = sGet('session', SS_TOKEN);
+    if (fromSession) return fromSession;
+    return cfg && cfg.token ? String(cfg.token) : '';
+  }
+
+  /** Persiste la configuración (el token solo en localStorage si se autoriza). */
+  function saveConfig() {
+    const toStore = Object.assign({}, cfg);
+    delete toStore.token;
+    if (cfg.remember && token) toStore.token = token;
+    sSet('local', LS_CFG, JSON.stringify(toStore));
+    if (token) sSet('session', SS_TOKEN, token); else sDel('session', SS_TOKEN);
+  }
+
+  function forgetToken() {
+    token = '';
+    const toStore = Object.assign({}, cfg);
+    delete toStore.token;
+    sSet('local', LS_CFG, JSON.stringify(toStore));
+    sDel('session', SS_TOKEN);
+  }
+
+  /* ---------------- Borrador de trabajo (autosave) ---------------- */
+  const persistState = debounce(function () {
+    if (!loaded && !seq.length) return;
+    try {
+      sSet('local', LS_DRAFT, JSON.stringify({
+        v: 1,
+        savedAt: Date.now(),
+        remoteSha: remoteSha,
+        remoteMeta: remoteMeta,
+        remoteText: remoteText.slice(0, 400000),
+        seq: seq
+      }));
+    } catch (_) { /* cuota superada: se ignora */ }
+  }, 600);
+
+  function restoreState() {
+    let raw = null;
+    try { raw = sGet('local', LS_DRAFT); } catch (_) { return false; }
+    if (!raw) return false;
+    try {
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.seq)) return false;
+      seq = data.seq.filter((it) => it && (it.kind === 'entry' ? it.entry && it.entry.imdbId !== undefined : true));
+      remoteSha = data.remoteSha || null;
+      remoteMeta = data.remoteMeta || null;
+      remoteText = typeof data.remoteText === 'string' ? data.remoteText : '';
+      loaded = seq.length > 0;
+      return seq.length > 0;
+    } catch (_) { return false; }
+  }
+
+  function clearDraft() { sDel('local', LS_DRAFT); }
+
+  /* ===========================================================================
+   * 4 · HTTP + GITHUB REST API
+   * ======================================================================== */
+  class ApiError extends Error {
+    constructor(message, status, data, kind) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status || 0;
+      this.data = data || null;
+      this.kind = kind || 'http';
+    }
+  }
+
+  /**
+   * fetch + JSON con timeout y errores homogéneos.
+   * Detecta fallos de red/CORS y los marca como kind:'network'.
+   */
+  async function httpJson(url, options) {
+    const opts = options || {};
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), opts.timeout || 20000);
+    let res;
+    try {
+      res = await fetch(url, {
+        method: opts.method || 'GET',
+        headers: opts.headers || {},
+        body: opts.body || undefined,
+        signal: ctrl.signal,
+        cache: 'no-store',
+        credentials: 'omit',
+        mode: 'cors',
+        referrerPolicy: 'no-referrer'
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      webFallback = true;
+      const aborted = err && err.name === 'AbortError';
+      throw new ApiError(
+        aborted
+          ? 'Tiempo de espera agotado (' + Math.round((opts.timeout || 20000) / 1000) + ' s). Revisa tu conexión.'
+          : 'No se pudo conectar con ' + new URL(url).host + '. Es posible que el navegador haya bloqueado la petición (CORS/red) o que no haya internet.',
+        0, null, 'network'
+      );
+    }
+    clearTimeout(timer);
+
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch (_) { data = text; } }
+
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status + ' ' + (res.statusText || '');
+      if (data && typeof data === 'object') {
+        if (data.message) msg += ' — ' + data.message;
+        else if (data.status_message) msg += ' — ' + data.status_message;
+        else if (data.Error) msg += ' — ' + data.Error;
+      }
+      throw new ApiError(msg.trim(), res.status, data, res.status === 401 || res.status === 403 ? 'auth' : 'http');
+    }
+    return data;
+  }
+
+  /* --------------------------- GitHub --------------------------- */
+  function ghConfigured() { return !!(cfg.owner && cfg.repo); }
+
+  function ghHeaders(extra) {
+    const h = Object.assign({
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }, extra || {});
+    if (token) h.Authorization = 'Bearer ' + token;
+    return h;
+  }
+
+  function contentsUrl(path) {
+    const p = String(path || '').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    return 'https://api.github.com/repos/' + encodeURIComponent(cfg.owner) + '/' +
+      encodeURIComponent(cfg.repo) + '/contents/' + p;
+  }
+
+  /** Traduce errores HTTP de GitHub a mensajes accionables. */
+  function ghFriendly(err) {
+    if (!(err instanceof ApiError)) return new ApiError(String(err && err.message || err), 0, null, 'unknown');
+    if (err.kind === 'network') return err;
+    const d = err.data && typeof err.data === 'object' ? err.data : {};
+    const docs = d.documentation_url ? ' · ' + d.documentation_url : '';
+    if (err.status === 401) return new ApiError('Token inválido o caducado (401). Genera un PAT nuevo con permiso «Contents: Read and write».', 401, err.data, 'auth');
+    if (err.status === 403) {
+      const rl = d.message && /rate limit|rate_limit/i.test(d.message);
+      return new ApiError(rl
+        ? 'Límite de peticiones de GitHub alcanzado (403). Añade un PAT en Ajustes para subir el límite.'
+        : 'Permiso denegado (403). El token necesita el permiso «Contents: Read and write» sobre este repositorio.' + docs, 403, err.data, 'auth');
+    }
+    if (err.status === 404) return new ApiError('No encontrado (404). Revisa Owner, Repo, Branch y la ruta «' + (cfg.path || '') + '». Si el archivo no existe aún, se creará al guardar (deja el sha vacío).', 404, err.data, 'notfound');
+    if (err.status === 409) return new ApiError('Conflicto de sha (409): el archivo cambió en GitHub después de cargarlo. Pulsa «Recargar» y vuelve a aplicar tus cambios.', 409, err.data, 'conflict');
+    if (err.status === 422) return new ApiError('Datos rechazados por GitHub (422). ' + (d.message || '') + docs, 422, err.data, 'http');
+    return err;
+  }
+
+  /**
+   * GET /repos/{owner}/{repo}/contents/{path} → { text, sha, size, path, htmlUrl }
+   */
+  async function ghGetFile(ref) {
+    if (!ghConfigured()) throw new ApiError('Configura Owner y Repo en Ajustes antes de leer el archivo.', 0, null, 'config');
+    const url = contentsUrl(cfg.path) + '?ref=' + encodeURIComponent(ref || cfg.branch || 'main');
+    let data;
+    try { data = await httpJson(url, { headers: ghHeaders() }); }
+    catch (err) { throw ghFriendly(err); }
+
+    if (Array.isArray(data)) throw new ApiError('La ruta «' + cfg.path + '» apunta a un directorio, no a un archivo.', 0, null, 'config');
+
+    let text = (data.encoding === 'base64' && data.content) ? decodeB64OrEmpty(data.content) : '';
+
+    /* Fallback 1: Blob API para archivos grandes (>1 MB que no traen content) */
+    if (!text && data.git_url) {
+      try {
+        const blob = await httpJson(data.git_url, { headers: ghHeaders() });
+        if (blob && blob.content) text = decodeB64OrEmpty(blob.content);
+      } catch (_) { /* se intenta el siguiente fallback */ }
+    }
+    /* Fallback 2: raw.githubusercontent.com (CORS abierto) */
+    if (!text && data.download_url) {
+      try {
+        const res = await fetch(data.download_url, { cache: 'no-store', credentials: 'omit' });
+        if (res.ok) text = await res.text();
+      } catch (_) { /* sin crudo: se informa abajo */ }
+    }
+    if (!text && data.size > 0) {
+      throw new ApiError('GitHub devolvió el archivo pero no fue posible decodificar su contenido (tamaño ' + data.size + ' bytes).', 0, null, 'decode');
+    }
+    return {
+      text: text,
+      sha: data.sha || null,
+      size: typeof data.size === 'number' ? data.size : text.length,
+      path: data.path || cfg.path,
+      htmlUrl: data.html_url || null
+    };
+  }
+
+  /**
+   * PUT /repos/{owner}/{repo}/contents/{path} → commit
+   * @param {string} contentText contenido final del archivo
+   * @param {string|null} sha sha actual (null para crear el archivo)
+   */
+  async function ghPutFile(contentText, sha, message) {
+    if (!ghConfigured()) throw new ApiError('Configura Owner y Repo en Ajustes antes de guardar.', 0, null, 'config');
+    if (!token) throw new ApiError('Necesitas un Personal Access Token para guardar (Ajustes → Token).', 0, null, 'auth');
+
+    const body = {
+      message: message || 'chore(watchlist): actualizar lista de descargas',
+      content: b64EncodeUtf8(contentText),
+      branch: cfg.branch || 'main'
+    };
+    if (sha) body.sha = sha;
+
+    try {
+      return await httpJson(contentsUrl(cfg.path), {
+        method: 'PUT',
+        headers: ghHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+        timeout: 30000
+      });
+    } catch (err) { throw ghFriendly(err); }
+  }
+
+  /** GET /rate_limit (no consume cuota) para el chip de estado. */
+  async function ghRateLimit() {
+    try { return await httpJson('https://api.github.com/rate_limit', { headers: ghHeaders(), timeout: 10000 }); }
+    catch (_) { return null; }
+  }
+
+  /* ===========================================================================
+   * 5 · FUENTES DE METADATOS
+   * ---------------------------------------------------------------------------
+   *  Registro extensible de proveedores. IMDb no tiene API oficial: se combinan
+   *  endpoints públicos de IMDb (Suggest), APIs libres sin clave (imdbapi.dev,
+   *  Cinemeta/Stremio, TVMaze, Wikidata, AniList) y APIs con clave gratuita
+   *  (TMDB, OMDb, Trakt, Simkl).
+   *
+   *  Cada fuente implementa:
+   *    search(query)                → Array<resultado unificado>
+   *    detail(imdbId, hint)         → título/año/póster/tipo  (enriquecimiento)
+   *    seriesInfo(imdbId, hint)     → { count, perSeason }    (temporadas)
+   * ======================================================================== */
+
+  /* ----------------------------- utilidades ----------------------------- */
+  function normTitle(s) {
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function relevanceOf(title, query) {
+    const t = normTitle(title), q = normTitle(query);
+    if (!q) return 3;
+    if (t === q) return 0;
+    if (t.indexOf(q) === 0) return 1;
+    if (t.indexOf(q) !== -1) return 2;
+    return 3;
+  }
+
+  const typeFromImdbQid = imdbQidToType;
+
+  function mediaTypeFromImdbApi(t) {
+    const s = String(t || '').toUpperCase();
+    if (s.indexOf('TV_') === 0) return 'series';
+    if (s === 'MOVIE' || s === 'SHORT' || s === 'VIDEO' || s === 'VIDEO_GAME') return 'movie';
+    return null;
+  }
+
+  function normalizeMediaType(v) {
+    const s = String(v == null ? '' : v).toLowerCase();
+    if (s === 'movie' || s === 'film') return 'movie';
+    if (s === 'tv' || s === 'series' || s === 'tvseries' || s === 'tvminiseries' || s === 'anime') return 'series';
+    return null;
+  }
+
+  function cleanYear(v) {
+    const m = /(\d{4})/.exec(String(v == null ? '' : v));
+    return m ? m[1] : '';
+  }
+
+  function resultOf(data) {
+    return {
+      key: '',
+      source: data.source || '',      // imprescindible: identifica la fuente en la fusión
+      sources: [],
+      imdbId: data.imdbId || '',
+      title: data.title || '',
+      year: cleanYear(data.year),
+      mediaType: data.mediaType || null,
+      poster: data.poster || '',
+      subtitle: data.subtitle || '',
+      overview: data.overview || '',
+      tmdbId: data.tmdbId || null,
+      tmdbKind: data.tmdbKind || null,
+      seasons: data.seasons || null,
+      extra: data.extra || null
+    };
+  }
+
+  /* --------------------------- registro --------------------------- */
+  const SOURCES = {};
+
+  function defSource(def) {
+    SOURCES[def.id] = Object.assign({
+      group: 'free', keyField: null, note: '', docs: '', experimental: false,
+      search: null, detail: null, seriesInfo: null
+    }, def);
+  }
+
+  function sourceUsable(id) {
+    const s = SOURCES[id];
+    if (!s) return false;
+    if (!s.keyField) return true;
+    return !!(cfg[s.keyField] && String(cfg[s.keyField]).trim());
+  }
+
+  function isEnabled(id) {
+    const list = cfg.enabledSources;
+    if (!Array.isArray(list) || !list.length) return true;
+    return list.indexOf(id) !== -1;
+  }
+
+  function usableSources() {
+    return Object.keys(SOURCES).filter((id) => isEnabled(id) && sourceUsable(id));
+  }
+
+  function keyHint(id) {
+    const s = SOURCES[id];
+    if (!s) return 'Fuente desconocida: ' + id + '.';
+    return 'Añade la clave de ' + s.label + ' en Ajustes → Metadatos para usar esta fuente.';
+  }
+
+  async function trySources(order, fn) {
+    for (let i = 0; i < order.length; i += 1) {
+      const id = order[i];
+      if (!SOURCES[id] || !sourceUsable(id)) continue;
+      try {
+        const out = await fn(SOURCES[id], id);
+        if (out) return out;
+      } catch (_) { /* se prueba la siguiente fuente */ }
+    }
+    return null;
+  }
+
+  /* ======================================================================
+   * 1) IMDb Suggest — autocompletado público de imdb.com (sin clave)
+   * ==================================================================== */
+  function imdbSuggestUrl(q, v2) {
+    const host = v2 ? 'https://v2.sg.media-imdb.com' : 'https://v3.sg.media-imdb.com';
+    return host + '/suggestion/x/' + encodeURIComponent(String(q).trim()) + '.json?includeVideos=0';
+  }
+
+  defSource({
+    id: 'imdb',
+    label: 'IMDb Suggest',
+    note: 'Autocompletado público de IMDb · sin clave',
+    search: async (query) => {
+      let data = null, lastErr = null;
+      for (const v2 of [false, true]) {
+        try {
+          data = await httpJson(imdbSuggestUrl(query, v2), { headers: { Accept: 'application/json' }, timeout: 12000 });
+          lastErr = null;
+          break;
+        } catch (err) { lastErr = err; }
+      }
+      if (!data) throw lastErr || new ApiError('IMDb Suggest no respondió.', 0, null, 'network');
+      return ((data && data.d) || []).map((it) => resultOf({
+        source: 'imdb',
+        imdbId: String(it.id || '').toLowerCase(),
+        title: it.l || it.name || '',
+        year: it.y || it.yr,
+        mediaType: typeFromImdbQid(it.qid || it.q),
+        poster: (it.i && (it.i.imageUrl || it.i.imageUrlSmall)) || '',
+        subtitle: [it.qid || it.q, it.s ? 'con ' + it.s : ''].filter(Boolean).join(' · '),
+        extra: it
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    }
+  });
+
+  /* ======================================================================
+   * 2) imdbapi.dev — API REST/GraphQL libre sobre datos de IMDb (sin clave)
+   * ==================================================================== */
+  defSource({
+    id: 'imdbapi',
+    label: 'imdbapi.dev',
+    note: 'API REST de IMDb · sin clave',
+    search: async (query) => {
+      const data = await httpJson('https://api.imdbapi.dev/search/titles?query=' + encodeURIComponent(query) + '&limit=20', { timeout: 15000 });
+      const list = (data && (data.titles || data.results)) || [];
+      return list.map((t) => resultOf({
+        source: 'imdbapi',
+        imdbId: String(t.id || t.titleId || '').toLowerCase(),
+        title: t.primaryTitle || t.originalTitle || t.title || '',
+        year: t.startYear || t.year,
+        mediaType: mediaTypeFromImdbApi(t.type),
+        poster: (t.primaryImage && t.primaryImage.url) || t.primaryImageUrl || '',
+        subtitle: [mediaTypeFromImdbApi(t.type) === 'series' ? 'Serie IMDb' : 'Película IMDb',
+                   t.rating && t.rating.aggregateRating ? '★ ' + t.rating.aggregateRating : ''].filter(Boolean).join(' · '),
+        extra: t
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    },
+    detail: async (imdbId) => {
+      const t = await httpJson('https://api.imdbapi.dev/titles/' + encodeURIComponent(imdbId), { timeout: 12000 });
+      if (!t || (!t.primaryTitle && !t.title)) return null;
+      return {
+        title: t.primaryTitle || t.originalTitle || t.title || '',
+        year: cleanYear(t.startYear || t.year),
+        mediaType: mediaTypeFromImdbApi(t.type),
+        poster: (t.primaryImage && t.primaryImage.url) || t.primaryImageUrl || '',
+        overview: t.plot || ''
+      };
+    }
+  });
+
+  /* ======================================================================
+   * 3) Cinemeta (Stremio) — metadata de IMDb, pósters y lista de episodios
+   * ==================================================================== */
+  const CINEMETA_HOSTS = ['https://v3-cinemeta.strem.io', 'https://cinemeta-live.strem.io'];
+
+  async function cinemetaSearch(query) {
+    const q = encodeURIComponent(String(query).trim()).replace(/%20/g, '%20');
+    const jobs = ['movie', 'series'].map((type) => {
+      const primary = CINEMETA_HOSTS[0] + '/catalog/' + type + '/top/search=' + q + '.json';
+      return httpJson(primary, { timeout: 12000 }).catch(() => httpJson(CINEMETA_HOSTS[1] + '/catalog/' + type + '/top/search=' + q + '.json', { timeout: 12000 }));
+    });
+    const settled = await Promise.allSettled(jobs);
+    const out = [];
+    settled.forEach((s, i) => {
+      if (s.status !== 'fulfilled' || !s.value) return;
+      const type = i === 0 ? 'movie' : 'series';
+      ((s.value && s.value.metas) || []).forEach((m) => {
+        if (!/^tt\d+$/.test(String(m.id || ''))) return;
+        out.push(resultOf({
+          source: 'cinemeta',
+          imdbId: String(m.id).toLowerCase(),
+          title: m.name || '',
+          year: m.releaseInfo || m.year,
+          mediaType: type,
+          poster: m.poster || '',
+          subtitle: ['Cinemeta', m.imdbRating ? '★ ' + m.imdbRating : '', type === 'series' ? 'Serie' : 'Película'].filter(Boolean).join(' · '),
+          extra: m
+        }));
+      });
+    });
+    if (!out.length && settled.every((s) => s.status === 'rejected')) {
+      throw settled[0].reason || new ApiError('Cinemeta no respondió.', 0, null, 'network');
+    }
+    return out;
+  }
+
+  async function cinemetaMeta(imdbId, type) {
+    const suffix = '/meta/' + type + '/' + encodeURIComponent(imdbId) + '.json';
+    const data = await httpJson(CINEMETA_HOSTS[0] + suffix, { timeout: 12000 })
+      .catch(() => httpJson(CINEMETA_HOSTS[1] + suffix, { timeout: 12000 }));
+    return (data && data.meta) || null;
+  }
+
+  function seasonsFromCinemeta(meta) {
+    if (!meta || !Array.isArray(meta.videos) || !meta.videos.length) return null;
+    const perSeason = {};
+    meta.videos.forEach((v) => {
+      const s = toInt(v.season, null), e = toInt(v.episode, null);
+      if (s && e) perSeason[s] = Math.max(perSeason[s] || 0, e);
+    });
+    const numbers = Object.keys(perSeason).map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+    if (!numbers.length) return null;
+    return { count: numbers[numbers.length - 1], perSeason: perSeason, source: 'cinemeta' };
+  }
+
+  defSource({
+    id: 'cinemeta',
+    label: 'Cinemeta (Stremio)',
+    note: 'Metadatos y episodios de IMDb · sin clave',
+    search: cinemetaSearch,
+    detail: async (imdbId, hint) => {
+      const types = hint && hint.mediaType === 'movie' ? ['movie'] : hint && hint.mediaType === 'series' ? ['series'] : ['movie', 'series'];
+      for (const t of types) {
+        const meta = await cinemetaMeta(imdbId, t).catch(() => null);
+        if (meta && (meta.name || meta.poster)) {
+          return {
+            title: meta.name || '',
+            year: cleanYear(meta.releaseInfo || meta.year),
+            mediaType: t,
+            poster: meta.poster || '',
+            overview: meta.description || '',
+            seasons: seasonsFromCinemeta(meta)
+          };
+        }
+      }
+      return null;
+    },
+    seriesInfo: async (imdbId) => seasonsFromCinemeta(await cinemetaMeta(imdbId, 'series').catch(() => null))
+  });
+
+  /* ======================================================================
+   * 4) TVMaze — series y episodios (sin clave)
+   * ==================================================================== */
+  function tvmazeShowToResult(show) {
+    const ex = show.externals || {};
+    return resultOf({
+      source: 'tvmaze',
+      imdbId: String(ex.imdb || '').toLowerCase(),
+      title: show.name || '',
+      year: show.premiered || '',
+      mediaType: 'series',
+      poster: (show.image && (show.image.medium || show.image.original)) || '',
+      subtitle: ['TVMaze', show.network && show.network.name, show.status].filter(Boolean).join(' · '),
+      overview: String(show.summary || '').replace(/<[^>]*>/g, ''),
+      extra: show
+    });
+  }
+
+  async function tvmazeLookup(imdbId) {
+    try {
+      return await httpJson('https://api.tvmaze.com/lookup/shows?imdb=' + encodeURIComponent(imdbId), { timeout: 12000 });
+    } catch (_) { return null; }
+  }
+
+  defSource({
+    id: 'tvmaze',
+    label: 'TVMaze',
+    note: 'Series y episodios · sin clave',
+    search: async (query) => {
+      const data = await httpJson('https://api.tvmaze.com/search/shows?q=' + encodeURIComponent(query), { timeout: 12000 });
+      return (Array.isArray(data) ? data : []).map((row) => tvmazeShowToResult(row.show || row))
+        .filter((r) => r.imdbId && /^tt\d+$/.test(r.imdbId));
+    },
+    detail: async (imdbId) => {
+      const show = await tvmazeLookup(imdbId);
+      if (!show) return null;
+      const seasons = await httpJson('https://api.tvmaze.com/shows/' + show.id + '/seasons', { timeout: 12000 }).catch(() => null);
+      let seasonsInfo = null;
+      if (Array.isArray(seasons) && seasons.length) {
+        const perSeason = {};
+        seasons.forEach((s) => {
+          const n = toInt(s.number, null);
+          const order = toInt(s.episodeOrder, null);
+          if (n && order) perSeason[n] = order;
+        });
+        const nums = Object.keys(perSeason).map(Number).sort((a, b) => a - b);
+        if (nums.length) seasonsInfo = { count: nums[nums.length - 1], perSeason: perSeason, source: 'tvmaze' };
+      }
+      const info = tvmazeShowToResult(show);
+      info.seasons = seasonsInfo;
+      return info;
+    },
+    seriesInfo: async (imdbId) => {
+      const show = await tvmazeLookup(imdbId);
+      if (!show) return null;
+      const seasons = await httpJson('https://api.tvmaze.com/shows/' + show.id + '/seasons', { timeout: 12000 });
+      if (!Array.isArray(seasons) || !seasons.length) return null;
+      const perSeason = {};
+      seasons.forEach((s) => {
+        const n = toInt(s.number, null), order = toInt(s.episodeOrder, null);
+        if (n && order) perSeason[n] = order;
+      });
+      const nums = Object.keys(perSeason).map(Number).sort((a, b) => a - b);
+      return nums.length ? { count: nums[nums.length - 1], perSeason: perSeason, source: 'tvmaze' } : null;
+    }
+  });
+
+  /* ======================================================================
+   * 5) Wikidata — resuelve títulos a IDs de IMDb (P345) sin clave
+   * ==================================================================== */
+  const WD_TYPES = {
+    Q11424: 'movie', Q24869: 'movie', Q93204: 'movie', Q202866: 'movie', Q506240: 'movie',
+    Q29168811: 'movie', Q1259759: 'series', Q3464665: 'series', Q5398426: 'series',
+    Q1107: 'series', Q63952888: 'series', Q581714: 'series', Q15416: 'series', Q196600: 'series'
+  };
+
+  async function wikidataSearch(query, limit) {
+    const url = 'https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&origin=*' +
+      '&type=item&limit=' + (limit || 12) +
+      '&language=es&uselang=es&search=' + encodeURIComponent(query);
+    const data = await httpJson(url, { timeout: 15000 });
+    const hits = (data && data.search) || [];
+    if (!hits.length) return { hits: [], entities: {} };
+
+    const ids = hits.map((h) => h.id).join('|');
+    const entUrl = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*' +
+      '&props=claims|labels|descriptions&languages=es|en&ids=' + encodeURIComponent(ids);
+    const ents = await httpJson(entUrl, { timeout: 15000 });
+    return { hits: hits, entities: (ents && ents.entities) || {} };
+  }
+
+  function wikidataEntityToResult(hit, ent) {
+    const claims = (ent && ent.claims) || {};
+    const imdbClaim = claims.P345 && claims.P345[0];
+    const imdbId = imdbClaim && imdbClaim.mainsnak && imdbClaim.mainsnak.datavalue && imdbClaim.mainsnak.datavalue.value;
+    if (!imdbId || !/^tt\d+$/.test(String(imdbId))) return null;
+    const typeClaim = claims.P31 && claims.P31[0];
+    const typeQid = typeClaim && typeClaim.mainsnak && typeClaim.mainsnak.datavalue && typeClaim.mainsnak.datavalue.value &&
+      typeClaim.mainsnak.datavalue.value.id;
+    const label = (ent.labels && ((ent.labels.es && ent.labels.es.value) || (ent.labels.en && ent.labels.en.value))) || hit.label || '';
+    const desc = (ent.descriptions && ((ent.descriptions.es && ent.descriptions.es.value) || (ent.descriptions.en && ent.descriptions.en.value))) || hit.description || '';
+    return resultOf({
+      source: 'wikidata',
+      imdbId: String(imdbId).toLowerCase(),
+      title: label,
+      year: claims.P577 && claims.P577[0] && claims.P577[0].mainsnak && claims.P577[0].mainsnak.datavalue &&
+        cleanYear(claims.P577[0].mainsnak.datavalue.value && claims.P577[0].mainsnak.datavalue.value.time),
+      mediaType: WD_TYPES[typeQid] || null,
+      subtitle: ['Wikidata', desc].filter(Boolean).join(' · '),
+      extra: { qid: hit.id }
+    });
+  }
+
+  defSource({
+    id: 'wikidata',
+    label: 'Wikidata',
+    note: 'Resuelve título → ID de IMDb (P345) · sin clave',
+    search: async (query) => {
+      const { hits, entities } = await wikidataSearch(query);
+      return hits.map((h) => wikidataEntityToResult(h, entities[h.id]))
+        .filter(Boolean)
+        .filter((r) => relevanceOf(r.title, query) < 3);
+    }
+  });
+
+  /* ======================================================================
+   * 6) AniList — anime (sin clave, GraphQL)
+   * ==================================================================== */
+  const ANILIST_QUERY = 'query ($q: String) { Page(perPage: 15) { media(search: $q, type: ANIME, sort: SEARCH_MATCH) {' +
+    ' id idMal format episodes startDate { year } coverImage { large medium }' +
+    ' title { romaji english native } externalLinks { site url } } } }';
+
+  function imdbFromLinks(links) {
+    const arr = links || [];
+    for (let i = 0; i < arr.length; i += 1) {
+      const l = arr[i];
+      const url = String((l && l.url) || '');
+      const m = /imdb\.com\/title\/(tt\d+)/i.exec(url);
+      if (m) return m[1].toLowerCase();
+      if (l && /^imdb$/i.test(String(l.site || ''))) {
+        const m2 = /(tt\d+)/.exec(url);
+        if (m2) return m2[1].toLowerCase();
+      }
+    }
+    return '';
+  }
+
+  defSource({
+    id: 'anilist',
+    label: 'AniList',
+    note: 'Anime · sin clave (GraphQL)',
+    search: async (query) => {
+      const data = await httpJson('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query: ANILIST_QUERY, variables: { q: query } }),
+        timeout: 15000
+      });
+      const media = (data && data.data && data.data.Page && data.data.Page.media) || [];
+      return media.map((m) => resultOf({
+        source: 'anilist',
+        imdbId: imdbFromLinks(m.externalLinks),
+        title: (m.title && (m.title.english || m.title.romaji || m.title.native)) || '',
+        year: m.startDate && m.startDate.year,
+        mediaType: 'series',
+        poster: (m.coverImage && (m.coverImage.large || m.coverImage.medium)) || '',
+        subtitle: ['AniList', m.format, m.episodes ? m.episodes + ' ep.' : ''].filter(Boolean).join(' · '),
+        extra: { anilistId: m.id, malId: m.idMal }
+      })).filter((r) => r.title);
+    }
+  });
+
+  /* ======================================================================
+   * 7) IMDbOT — buscador no oficial de IMDb (sin clave, experimental)
+   * ==================================================================== */
+  defSource({
+    id: 'imdbot',
+    label: 'IMDbOT (experimental)',
+    note: 'Servicio no oficial, puede estar caído · sin clave',
+    experimental: true,
+    search: async (query) => {
+      const data = await httpJson('https://imdb.iamidiotareyoutoo.com/search?q=' + encodeURIComponent(query), { timeout: 15000 });
+      const rows = [].concat(
+        Array.isArray(data) ? data : [],
+        (data && (data.data || data.results || data.description || data.titles)) || []
+      );
+      return rows.map((row) => {
+        const imdb = String(row['#IMDB_ID'] || row.imdb_id || row.imdbId || row.id || '');
+        const m = /(tt\d+)/.exec(imdb) || /imdb\.com\/title\/(tt\d+)/i.exec(String(row.url || row.link || ''));
+        if (!m) return null;
+        return resultOf({
+          source: 'imdbot',
+          imdbId: m[1].toLowerCase(),
+          title: row['#TITLE'] || row.title || row.name || '',
+          year: row['#YEAR'] || row.year || row.releaseYear,
+          mediaType: /series|tv/i.test(String(row['#RANK'] || row.type || '')) ? 'series' : null,
+          poster: row['#IMG_POSTER'] || row.poster || row.image || '',
+          subtitle: 'IMDbOT',
+          extra: row
+        });
+      }).filter((r) => r && r.imdbId && r.title);
+    }
+  });
+
+  /* ======================================================================
+   * 8) TMDB v3 — películas y series (clave gratuita)
+   * ==================================================================== */
+  function tmdbUrl(path, params) {
+    const p = new URLSearchParams(Object.assign({ api_key: String(cfg.tmdbKey || '').trim(), language: cfg.lang || 'es-ES' }, params || {}));
+    return 'https://api.themoviedb.org/3' + path + '?' + p.toString();
+  }
+
+  function tmdbFriendly(err) {
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    const d = err.data && typeof err.data === 'object' ? err.data : {};
+    if (err.status === 401) return new ApiError('TMDB rechazó la API key (401). Comprueba el valor en themoviedb.org → Ajustes → API.', 401, err.data, 'auth');
+    if (err.status === 404 || d.status_code === 34) return new ApiError('TMDB no encontró ese recurso (404).', 404, err.data, 'notfound');
+    if (err.status === 429) return new ApiError('Demasiadas peticiones a TMDB (429). Espera unos segundos.', 429, err.data, 'http');
+    return err;
+  }
+
+  async function tmdbJson(path, params) {
+    try { return await httpJson(tmdbUrl(path, params), { timeout: 15000 }); }
+    catch (err) { throw tmdbFriendly(err); }
+  }
+
+  function tmdbItemToResult(r, kind) {
+    return resultOf({
+      source: 'tmdb',
+      tmdbId: String(r.id),
+      tmdbKind: kind,
+      title: r.title || r.name || r.original_title || r.original_name || '',
+      year: r.release_date || r.first_air_date,
+      mediaType: kind === 'tv' ? 'series' : 'movie',
+      poster: r.poster_path ? 'https://image.tmdb.org/t/p/w185' + r.poster_path : '',
+      subtitle: [kind === 'tv' ? 'Serie TMDB' : 'Película TMDB',
+                 r.original_language ? String(r.original_language).toUpperCase() : '',
+                 r.vote_average ? '★ ' + Number(r.vote_average).toFixed(1) : ''].filter(Boolean).join(' · '),
+      overview: r.overview || '',
+      extra: r
+    });
+  }
+
+  defSource({
+    id: 'tmdb',
+    label: 'TMDB v3',
+    keyField: 'tmdbKey',
+    group: 'key',
+    note: 'Películas y series · clave gratuita',
+    docs: 'https://www.themoviedb.org/settings/api',
+    search: async (query) => {
+      const data = await tmdbJson('/search/multi', { query: query, include_adult: 'false', page: '1' });
+      return ((data && data.results) || [])
+        .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+        .map((r) => tmdbItemToResult(r, r.media_type));
+    },
+    detail: async (imdbId, hint) => {
+      if (hint && hint.tmdbId) {
+        const kind = hint.tmdbKind === 'tv' ? 'tv' : 'movie';
+        const d = await tmdbJson('/' + kind + '/' + hint.tmdbId, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, kind);
+      }
+      const found = await tmdbJson('/find/' + encodeURIComponent(imdbId), { external_source: 'imdb_id' }).catch(() => null);
+      if (!found) return null;
+      const movie = (found.movie_results || [])[0];
+      const tv = (found.tv_results || [])[0];
+      if (tv) {
+        const d = await tmdbJson('/tv/' + tv.id, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, 'tv');
+      }
+      if (movie) {
+        const d = await tmdbJson('/movie/' + movie.id, {}).catch(() => null);
+        if (d) return tmdbDetailToInfo(d, 'movie');
+      }
+      return null;
+    },
+    seriesInfo: async (imdbId, hint) => {
+      let kind = hint && hint.tmdbKind, id = hint && hint.tmdbId;
+      if (!id || !/^tt\d+$/.test(imdbId) === false) { /* nada */ }
+      if (!id) {
+        const found = await tmdbJson('/find/' + encodeURIComponent(imdbId), { external_source: 'imdb_id' }).catch(() => null);
+        const tv = found && (found.tv_results || [])[0];
+        if (tv) { id = tv.id; kind = 'tv'; }
+      }
+      if (!id || kind !== 'tv') return null;
+      const d = await tmdbJson('/tv/' + id, {}).catch(() => null);
+      if (!d || !d.number_of_seasons) return null;
+      const perSeason = {};
+      (d.seasons || []).forEach((s) => { if (s.season_number > 0 && s.episode_count) perSeason[s.season_number] = s.episode_count; });
+      return { count: d.number_of_seasons, perSeason: Object.keys(perSeason).length ? perSeason : null, source: 'tmdb' };
+    }
+  });
+
+  function tmdbDetailToInfo(d, kind) {
+    const perSeason = {};
+    (d.seasons || []).forEach((s) => { if (s.season_number > 0 && s.episode_count) perSeason[s.season_number] = s.episode_count; });
+    return {
+      title: d.title || d.name || '',
+      year: cleanYear(d.release_date || d.first_air_date),
+      mediaType: kind === 'tv' ? 'series' : 'movie',
+      poster: d.poster_path ? 'https://image.tmdb.org/t/p/w185' + d.poster_path : '',
+      overview: d.overview || '',
+      tmdbId: String(d.id || ''),
+      tmdbKind: kind,
+      seasons: d.number_of_seasons ? { count: d.number_of_seasons, perSeason: Object.keys(perSeason).length ? perSeason : null, source: 'tmdb' } : null
+    };
+  }
+
+  async function tmdbToImdbId(tmdbId, kind) {
+    try {
+      const data = await tmdbJson('/' + (kind === 'tv' ? 'tv' : 'movie') + '/' + encodeURIComponent(tmdbId) + '/external_ids', {});
+      return data && data.imdb_id ? String(data.imdb_id).toLowerCase() : '';
+    } catch (_) { return ''; }
+  }
+
+  /* ======================================================================
+   * 9) OMDb — IMDb por título o id (clave gratuita)
+   * ==================================================================== */
+  function omdbUrl(params) {
+    const p = new URLSearchParams(Object.assign({ apikey: String(cfg.omdbKey || '').trim() }, params || {}));
+    return 'https://www.omdbapi.com/?' + p.toString();
+  }
+
+  function omdbFriendly(err, data) {
+    const d = data || (err && err.data) || {};
+    const apiMsg = String(d.Error || '');
+    if (/invalid api key/i.test(apiMsg)) return new ApiError('OMDb dice «Invalid API Key». Verifica la clave (las nuevas tardan en activarse).', 401, d, 'auth');
+    if (/limit/i.test(apiMsg)) return new ApiError('Has superado el límite diario de OMDb (1.000 peticiones gratuitas).', 429, d, 'http');
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    return err;
+  }
+
+  async function omdbByImdbId(imdbId) {
+    if (!sourceUsable('omdb') || !/^tt\d+$/.test(imdbId)) return null;
+    try {
+      const data = await httpJson(omdbUrl({ i: imdbId, plot: 'short', r: 'json' }), { timeout: 15000 });
+      if (!data || data.Response === 'False') return null;
+      return {
+        title: data.Title || '',
+        year: cleanYear(data.Year),
+        mediaType: normalizeMediaType(data.Type),
+        poster: data.Poster && data.Poster !== 'N/A' ? data.Poster : '',
+        overview: data.Plot && data.Plot !== 'N/A' ? data.Plot : '',
+        seasons: toInt(data.totalSeasons, null) ? { count: toInt(data.totalSeasons, null), perSeason: null, source: 'omdb' } : null
+      };
+    } catch (_) { return null; }
+  }
+
+  defSource({
+    id: 'omdb',
+    label: 'OMDb',
+    keyField: 'omdbKey',
+    group: 'key',
+    note: 'Búsqueda por título o id IMDb · clave gratuita',
+    docs: 'https://www.omdbapi.com/apikey.aspx',
+    search: async (query) => {
+      const params = { s: query, r: 'json' };
+      if (searchTypeFilter === 'movie') params.type = 'movie';
+      if (searchTypeFilter === 'series') params.type = 'series';
+      let data;
+      try { data = await httpJson(omdbUrl(params), { timeout: 15000 }); }
+      catch (err) { throw omdbFriendly(err); }
+      if (!data || data.Response === 'False') {
+        const msg = String((data && data.Error) || 'OMDb no devolvió resultados.');
+        if (/invalid api key/i.test(msg)) throw new ApiError('OMDb dice «Invalid API Key». Verifica la clave en Ajustes.', 401, data, 'auth');
+        throw new ApiError(msg, 404, data, 'notfound');
+      }
+      return (data.Search || []).map((r) => resultOf({
+        source: 'omdb',
+        imdbId: String(r.imdbID || '').toLowerCase(),
+        title: r.Title || '',
+        year: r.Year,
+        mediaType: normalizeMediaType(r.Type),
+        poster: r.Poster && r.Poster !== 'N/A' ? r.Poster : '',
+        subtitle: [normalizeMediaType(r.Type) === 'series' ? 'Serie' : 'Película', r.Year || ''].filter(Boolean).join(' · '),
+        extra: r
+      })).filter((r) => /^tt\d+$/.test(r.imdbId));
+    },
+    detail: (imdbId) => omdbByImdbId(imdbId),
+    seriesInfo: async (imdbId) => {
+      const info = await omdbByImdbId(imdbId);
+      return info && info.seasons ? info.seasons : null;
+    }
+  });
+
+  /* ======================================================================
+   * 10) Trakt — búsqueda e IDs cruzados (clave gratuita: client_id)
+   * ==================================================================== */
+  function traktHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'trakt-api-key': String(cfg.traktKey || '').trim(),
+      'trakt-api-version': '2'
+    };
+  }
+
+  function traktFriendly(err) {
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    if (err.status === 401 || err.status === 403) return new ApiError('Trakt rechazó el client_id (401/403). Cópialo de trakt.tv → Settings → Your API Apps.', err.status, err.data, 'auth');
+    if (err.status === 420 || err.status === 429) return new ApiError('Trakt: demasiadas peticiones, espera unos segundos.', err.status, err.data, 'http');
+    return err;
+  }
+
+  defSource({
+    id: 'trakt',
+    label: 'Trakt',
+    keyField: 'traktKey',
+    group: 'key',
+    note: 'Búsqueda por título e IDs cruzados · client_id gratuito',
+    docs: 'https://trakt.tv/oauth/applications',
+    search: async (query) => {
+      const jobs = ['movie', 'show'].map((type) =>
+        httpJson('https://api.trakt.tv/search/' + type + '?query=' + encodeURIComponent(query) + '&limit=12', { headers: traktHeaders(), timeout: 15000 })
+          .catch((err) => { throw traktFriendly(err); })
+      );
+      const settled = await Promise.allSettled(jobs);
+      const out = [];
+      settled.forEach((s) => {
+        if (s.status !== 'fulfilled' || !Array.isArray(s.value)) return;
+        s.value.forEach((row) => {
+          const item = row.movie || row.show;
+          if (!item) return;
+          out.push(resultOf({
+            source: 'trakt',
+            imdbId: String((item.ids && item.ids.imdb) || '').toLowerCase(),
+            tmdbId: (item.ids && item.ids.tmdb) || null,
+            tmdbKind: row.movie ? 'movie' : 'tv',
+            title: item.title || '',
+            year: item.year,
+            mediaType: row.movie ? 'movie' : 'series',
+            subtitle: ['Trakt', row.movie ? 'Película' : 'Serie'].join(' · '),
+            extra: row
+          }));
+        });
+      });
+      if (!out.length && settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
+      return out;
+    },
+    detail: async (imdbId) => {
+      const rows = await httpJson('https://api.trakt.tv/search/imdb/' + encodeURIComponent(imdbId), { headers: traktHeaders(), timeout: 12000 }).catch(() => null);
+      const row = Array.isArray(rows) ? rows[0] : null;
+      const item = row && (row.movie || row.show);
+      if (!item) return null;
+      return {
+        title: item.title || '',
+        year: cleanYear(item.year),
+        mediaType: row.movie ? 'movie' : 'series',
+        poster: '',
+        overview: item.overview || '',
+        tmdbId: (item.ids && item.ids.tmdb) || null,
+        tmdbKind: row.movie ? 'movie' : 'tv'
+      };
+    }
+  });
+
+  /* ======================================================================
+   * 11) Simkl — películas, series y anime (clave gratuita: client_id)
+   * ==================================================================== */
+  function simklParams(extra) {
+    return new URLSearchParams(Object.assign({
+      client_id: String(cfg.simklKey || '').trim(),
+      'app-name': 'peerflix-static-watchlist',
+      'app-version': APP_VERSION
+    }, extra || {})).toString();
+  }
+
+  function simklFriendly(err) {
+    if (!(err instanceof ApiError) || err.kind === 'network') return err;
+    if (err.status === 401 || err.status === 403) return new ApiError('Simkl rechazó el client_id (401/403). Copia la clave de simkl.com → Developers.', err.status, err.data, 'auth');
+    return err;
+  }
+
+  function simklItemToResult(item, kind) {
+    const ids = item.ids || {};
+    return resultOf({
+      source: 'simkl',
+      imdbId: String(ids.imdb || '').toLowerCase(),
+      tmdbId: ids.tmdb || ids.tmdbtv || null,
+      tmdbKind: kind === 'tv' ? 'tv' : 'movie',
+      title: item.title || item.name || '',
+      year: item.year || item.release_date,
+      mediaType: kind === 'movie' ? 'movie' : 'series',
+      poster: item.poster || item.poster_url || '',
+      subtitle: ['Simkl', kind === 'movie' ? 'Película' : kind === 'anime' ? 'Anime' : 'Serie'].join(' · '),
+      overview: item.overview || item.description || '',
+      extra: item
+    });
+  }
+
+  defSource({
+    id: 'simkl',
+    label: 'Simkl',
+    keyField: 'simklKey',
+    group: 'key',
+    note: 'Películas, series y anime · client_id gratuito',
+    docs: 'https://simkl.com/settings/developer/',
+    search: async (query) => {
+      const jobs = ['movie', 'tv', 'anime'].map((type) =>
+        httpJson('https://api.simkl.com/search/' + type + '?' + simklParams({ q: query, limit: 12 }), { timeout: 15000 })
+          .catch((err) => { throw simklFriendly(err); })
+      );
+      const settled = await Promise.allSettled(jobs);
+      const out = [];
+      settled.forEach((s, i) => {
+        if (s.status !== 'fulfilled' || !Array.isArray(s.value)) return;
+        const kind = ['movie', 'tv', 'anime'][i];
+        s.value.forEach((item) => {
+          const r = simklItemToResult(item, kind);
+          if (r.title) out.push(r);
+        });
+      });
+      if (!out.length && settled.every((s) => s.status === 'rejected')) throw settled[0].reason;
+      return out;
+    }
+  });
+
+  /* ======================================================================
+   * Búsqueda unificada: una fuente o todas en paralelo
+   * ==================================================================== */
+  const MERGE_FIELDS = ['imdbId', 'poster', 'year', 'overview', 'mediaType', 'tmdbId', 'tmdbKind', 'seasons'];
+
+  function mergeInto(cur, r) {
+    if ((cur.sources || []).indexOf(r.source) === -1) cur.sources.push(r.source);
+    MERGE_FIELDS.forEach((f) => { if (!cur[f] && r[f]) cur[f] = r[f]; });
+    if (!cur.title && r.title) cur.title = r.title;
+    if (!cur.subtitle && r.subtitle) cur.subtitle = r.subtitle;
+    return cur;
+  }
+
+  /**
+   * Fusiona resultados de varias fuentes:
+   *  - 1ª pasada: por ID de IMDb (idéntico → misma ficha).
+   *  - 2ª pasada: las que no traen ID IMDb se absorben en la ficha con el mismo
+   *    título+año (evita duplicados tipo «The Matrix» de TMDB vs IMDb).
+   */
+  function mergeResults(list) {
+    const byId = new Map();
+    const leftovers = [];
+    list.forEach((r) => {
+      if (r.imdbId && /^tt\d+$/.test(r.imdbId)) {
+        const cur = byId.get(r.imdbId);
+        if (cur) mergeInto(cur, r);
+        else byId.set(r.imdbId, Object.assign({}, r, { sources: [r.source] }));
+      } else {
+        leftovers.push(r);
+      }
+    });
+    const byTitle = new Map();
+    byId.forEach((r) => {
+      const k = normTitle(r.title) + '|' + (r.year || '');
+      if (!byTitle.has(k)) byTitle.set(k, []);
+      byTitle.get(k).push(r);
+    });
+    const orphans = [];
+    leftovers.forEach((r) => {
+      const k = normTitle(r.title) + '|' + (r.year || '');
+      const bucket = byTitle.get(k) || (byTitle.get(normTitle(r.title) + '|') || null);
+      if (bucket && bucket.length) mergeInto(bucket[0], r);
+      else {
+        const cur = orphans.find((o) => normTitle(o.title) === normTitle(r.title) && (o.year || '') === (r.year || ''));
+        if (cur) mergeInto(cur, r);
+        else orphans.push(Object.assign({}, r, { sources: [r.source] }));
+      }
+    });
+    return Array.from(byId.values()).concat(orphans);
+  }
+
+  function rankResults(list, query) {
+    return list.slice().sort((a, b) => {
+      const ra = relevanceOf(a.title, query), rb = relevanceOf(b.title, query);
+      if (ra !== rb) return ra - rb;
+      const sa = (a.sources || []).length, sb = (b.sources || []).length;
+      if (sa !== sb) return sb - sa;
+      const ya = toInt(a.year, 0), yb = toInt(b.year, 0);
+      if (ya !== yb) return yb - ya;
+      return a.title.localeCompare(b.title, 'es');
+    });
+  }
+
+  async function searchAllSources(query) {
+    const ids = usableSources();
+    const jobs = ids.map((id) => SOURCES[id].search(query)
+      .then((res) => ({ id: id, res: res || [] }))
+      .catch((err) => ({ id: id, err: err })));
+    const settled = await Promise.all(jobs);
+    const statuses = {};
+    let all = [];
+    settled.forEach((s) => {
+      if (s.err) {
+        statuses[s.id] = { ok: false, message: (s.err && s.err.message) || 'Error', count: 0 };
+        setProvider(s.id, (s.err.kind === 'auth' || s.err.kind === 'config') ? 'off' : 'error',
+          ((s.err && s.err.message) || 'Error').slice(0, 110));
+      } else {
+        statuses[s.id] = { ok: true, message: s.res.length + ' resultados', count: s.res.length };
+        setProvider(s.id, s.res.length ? 'ok' : 'idle',
+          s.res.length ? s.res.length + ' resultados · ' + new Date().toLocaleTimeString('es-ES') : 'Sin resultados');
+      }
+      all = all.concat(s.res || []);
+    });
+    return { results: rankResults(mergeResults(all), query), statuses: statuses, sources: ids };
+  }
+
+  async function searchOneSource(id, query) {
+    const src = SOURCES[id];
+    if (!src) return { results: [], statuses: {} };
+    if (src.keyField && !sourceUsable(id)) throw new ApiError(keyHint(id), 0, null, 'config');
+    const res = await src.search(query);
+    const list = rankResults(mergeResults(res.map((r) => Object.assign({ sources: [r.source] }, r))), query);
+    setProvider(id, list.length ? 'ok' : 'idle',
+      list.length ? list.length + ' resultados · ' + new Date().toLocaleTimeString('es-ES') : 'Sin resultados');
+    return { results: list, statuses: { [id]: { ok: true, message: list.length + ' resultados', count: list.length } }, sources: [id] };
+  }
+
+  /* ======================================================================
+   * Información de series (temporadas y episodios por temporada)
+   * ==================================================================== */
+  const seriesCache = new Map();
+
+  async function seriesInfo(opts) {
+    const o = opts || {};
+    const key = (o.imdbId && /^tt\d+$/.test(o.imdbId) ? o.imdbId : 'tmdb:' + (o.tmdbId || '')) + ':' + (o.mediaType || '');
+    if (!key || key === 'tmdb::') return null;
+    if (seriesCache.has(key)) return seriesCache.get(key);
+    const promise = (async () => {
+      const order = o.mediaType === 'movie' ? [] : ['cinemeta', 'tvmaze', 'tmdb', 'omdb'];
+      const hint = { mediaType: o.mediaType, tmdbId: o.tmdbId, tmdbKind: o.tmdbKind };
+      const found = await trySources(order, (src) => (src.seriesInfo ? src.seriesInfo(o.imdbId, hint) : null));
+      return found || null;
+    })();
+    seriesCache.set(key, promise);
+    return promise;
+  }
+
+  /* ======================================================================
+   * Enriquecimiento por ID de IMDb (póster, título, año, tipo)
+   * ==================================================================== */
+  const detailCache = new Map();
+
+  async function detailByImdbId(imdbId, hint) {
+    if (!/^tt\d+$/.test(imdbId)) return null;
+    if (detailCache.has(imdbId)) return detailCache.get(imdbId);
+    const promise = (async () => {
+      const order = ['omdb', 'imdbapi', 'cinemeta', 'tvmaze', 'tmdb', 'trakt'];
+      return await trySources(order, (src) => (src.detail ? src.detail(imdbId, hint || {}) : null));
+    })();
+    detailCache.set(imdbId, promise);
+    return promise;
+  }
+
+  /* -------------------- estado de las fuentes (UI) -------------------- */
+  function initProviderState() {
+    providerState = {};
+    Object.keys(SOURCES).forEach((id) => {
+      const s = SOURCES[id];
+      providerState[id] = {
+        id: id,
+        name: s.label,
+        note: s.note + (s.experimental ? ' · experimental' : ''),
+        group: s.group,
+        keyField: s.keyField,
+        docs: s.docs,
+        state: 'idle',
+        warned: false,
+        detail: sourceUsable(id) ? 'Lista · pulsa Probar' : 'Sin clave'
+      };
+    });
+  }
+
+  function setProvider(id, state, detail) {
+    const p = providerState[id];
+    if (!p) return;
+    if (state === 'off' && p.warned) return;   // un aviso por sesión y fuente
+    if (state === 'off') p.warned = true;
+    p.state = state;
+    if (detail) p.detail = detail;
+    renderProviders();
+  }
+
+  /** Prueba de conectividad de una fuente concreta. */
+  async function testProvider(id) {
+    const s = SOURCES[id];
+    if (!s) return { ok: false, message: 'Fuente desconocida.' };
+    if (!sourceUsable(id)) return { ok: false, message: keyHint(id) };
+    try {
+      const res = await s.search('matrix', {});
+      if (!res || !res.length) return { ok: false, message: 'Sin resultados (¿servicio caído o sin coincidencias?).' };
+      return { ok: true, message: res.length + ' resultados de prueba.' };
+    } catch (err) {
+      return { ok: false, message: (err && err.message) || 'Error desconocido.' };
+    }
+  }
+
+  /* Compatibilidad con el resto de la app */
+  const providerReady = (id) => sourceUsable(id);
+  const missingKeyError = (id) => new ApiError(keyHint(id), 0, null, 'config');
+  const sourceLabel = (id) => (id === 'all' ? 'Todas las fuentes' : (SOURCES[id] ? SOURCES[id].label : id));
+
+  /* Se exponen para las pruebas del núcleo */
+  CORE.mergeResults = mergeResults;
+  CORE.rankResults = rankResults;
+  CORE.normTitle = normTitle;
+  CORE.relevanceOf = relevanceOf;
+
+  initProviderState();
+
+  /** Resuelve un ID de IMDb cuando la fuente no lo trae (TMDB, Wikidata, AniList…). */
+  async function resolveImdbId(res) {
+    if (res.imdbId && /^tt\d+$/.test(res.imdbId)) return res.imdbId;
+    if (res.source === 'tmdb' && res.tmdbId) {
+      const id = await tmdbToImdbId(res.tmdbId, res.tmdbKind);
+      if (id) return id;
+    }
+    const title = res.title, year = res.year;
+    const found = await trySources(['wikidata', 'imdbapi', 'cinemeta', 'tvmaze', 'omdb'], async (src, id) => {
+      const list = await src.search(title);
+      const want = normTitle(title);
+      const hit = (list || []).find((r) => r.imdbId && normTitle(r.title) === want && (!year || !r.year || r.year === year)) ||
+        (list || []).find((r) => r.imdbId && normTitle(r.title) === want) ||
+        (list || []).find((r) => r.imdbId && relevanceOf(r.title, title) <= 1);
+      return hit || null;
+    });
+    return found ? found.imdbId : '';
+  }
+
+  /* ===========================================================================
+   * 6 · UI
+   * ======================================================================== */
+  const ICONS = {
+    success: '<path d="M20 6 9 17l-5-5"/>',
+    error:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/>',
+    warn:    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17v.01"/>',
+    info:    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.01"/>',
+    loading: '<path d="M21 12a9 9 0 1 1-6.2-8.6"/>'
+  };
+  const TOAST_STYLE = {
+    success: ['badge-emerald', 'text-emerald-300'],
+    error:   ['badge-red',     'text-red-300'],
+    warn:    ['badge-amber',   'text-amber-300'],
+    info:    ['badge-sky',     'text-sky-300'],
+    loading: ['badge-teal',    'text-teal-300']
+  };
+
+  /** Toast visual. Devuelve un handle para cerrarlo o actualizarlo. */
+  function toast(message, type, title, ms) {
+    type = TOAST_STYLE[type] ? type : 'info';
+    const wrap = $('#toasts');
+    const el = document.createElement('div');
+    el.className = 'toast pointer-events-auto';
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    const spinner = type === 'loading' ? ' spin' : '';
+    const style = TOAST_STYLE[type];
+    el.innerHTML =
+      '<span class="mt-0.5 shrink-0 ' + style[1] + '">' +
+        '<svg viewBox="0 0 24 24" class="h-4 w-4' + spinner + '" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+        'stroke-linecap="round" stroke-linejoin="round">' + ICONS[type] + '</svg></span>' +
+      '<div class="min-w-0 flex-1">' +
+        (title ? '<p class="text-[13px] font-semibold text-zinc-100"></p>' : '') +
+        '<p class="whitespace-pre-line break-words text-[12px] leading-snug text-zinc-300"></p>' +
+      '</div>' +
+      '<button class="btn btn-ghost btn-xs -mr-1 -mt-0.5" aria-label="Cerrar">' +
+        '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
+      '</button>';
+    if (title) $('p.text-\\[13px\\]', el).textContent = title;
+    $$('p', el).forEach((p, i) => { if (i === (title ? 1 : 0)) p.textContent = String(message == null ? '' : message); });
+    wrap.appendChild(el);
+
+    const close = () => {
+      if (!el.parentNode) return;
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 200);
+    };
+    $('button', el).addEventListener('click', close);
+    let timer = null;
+    const arm = (delay) => { clearTimeout(timer); if (delay > 0) timer = setTimeout(close, delay); };
+    arm(ms != null ? ms : (type === 'error' ? 9000 : type === 'loading' ? 0 : 4800));
+
+    return {
+      el: el,
+      close: close,
+      update: (msg, newType, delay) => {
+        if (newType && TOAST_STYLE[newType]) {
+          const s = TOAST_STYLE[newType];
+          const iconWrap = el.firstElementChild;
+          iconWrap.className = 'mt-0.5 shrink-0 ' + s[1];
+          iconWrap.firstElementChild.innerHTML = ICONS[newType];
+          iconWrap.firstElementChild.classList.toggle('spin', newType === 'loading');
+        }
+        const ps = $$('p', el);
+        ps[ps.length - 1].textContent = String(msg == null ? '' : msg);
+        arm(delay != null ? delay : (newType === 'loading' ? 0 : 5000));
+      }
+    };
+  }
+
+  /** Estado «cargando» en un botón sin perder su contenido. */
+  function setBusy(btn, busy) {
+    if (!btn) return;
+    if (busy) {
+      if (!btn.dataset.html) btn.dataset.html = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" class="h-4 w-4 spin" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+        'stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>';
+    } else {
+      btn.disabled = false;
+      if (btn.dataset.html) { btn.innerHTML = btn.dataset.html; delete btn.dataset.html; }
+    }
+  }
+
+  /* ------------------------------ Modales ------------------------------ */
+  const modals = ['#modalSettings', '#modalPicker', '#modalAsk'];
+  let modalStack = [];
+
+  function openModal(sel) {
+    const el = $(sel);
+    if (!el) return;
+    el.classList.remove('hidden');
+    modalStack = modalStack.filter((s) => s !== sel).concat([sel]);
+    document.body.style.overflow = 'hidden';
+    const focusable = $('input:not([type=hidden]), select, textarea, button.btn-primary', el);
+    if (focusable) setTimeout(() => { try { focusable.focus(); } catch (_) {} }, 40);
+  }
+
+  function closeModal(sel) {
+    const el = $(sel);
+    if (!el) return;
+    el.classList.add('hidden');
+    modalStack = modalStack.filter((s) => s !== sel);
+    if (!modalStack.length) document.body.style.overflow = '';
+  }
+
+  function closeTopModal() {
+    if (!modalStack.length) return;
+    closeModal(modalStack[modalStack.length - 1]);
+  }
+
+  /* --------------------- Modal de confirmación (promesa) --------------------- */
+  function ask(opts) {
+    return new Promise((resolve) => {
+      askResolver = resolve;
+      $('#askTitle').textContent = opts.title || '¿Seguro?';
+      const body = $('#askBody');
+      body.innerHTML = '';
+      if (opts.bodyHtml) {
+        const div = document.createElement('div');
+        div.innerHTML = opts.bodyHtml;
+        body.appendChild(div);
+      }
+      const okBtn = $('#askOk');
+      okBtn.textContent = opts.okText || 'Aceptar';
+      okBtn.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+      const cancelBtn = $('#askCancel');
+      cancelBtn.classList.toggle('hidden', opts.hideCancel === true);
+      cancelBtn.textContent = opts.cancelText || 'Cancelar';
+      const extraBtn = $('#askExtra');
+      if (opts.extraText) {
+        extraBtn.classList.remove('hidden');
+        extraBtn.textContent = opts.extraText;
+      } else extraBtn.classList.add('hidden');
+      openModal('#modalAsk');
+      setTimeout(() => { try { okBtn.focus(); } catch (_) {} }, 40);
+    });
+  }
+
+  function resolveAsk(value) {
+    closeModal('#modalAsk');
+    if (askResolver) { const r = askResolver; askResolver = null; r(value); }
+  }
+
+  /* --------------------------- Ajustes (formulario) --------------------------- */
+  function fillSettingsForm() {
+    $('#cfgOwner').value = cfg.owner || '';
+    $('#cfgRepo').value = cfg.repo || '';
+    $('#cfgBranch').value = cfg.branch || 'main';
+    $('#cfgPath').value = cfg.path || 'watchlist.txt';
+    $('#cfgToken').value = token || '';
+    $('#cfgRemember').checked = cfg.remember !== false;
+    $('#cfgTmdb').value = cfg.tmdbKey || '';
+    $('#cfgOmdb').value = cfg.omdbKey || '';
+    $('#cfgTrakt').value = cfg.traktKey || '';
+    $('#cfgSimkl').value = cfg.simklKey || '';
+    $('#cfgLang').value = cfg.lang || 'es-ES';
+    $('#cfgAutoLoad').checked = cfg.autoLoad !== false;
+    $('#cfgFinalNewline').checked = cfg.finalNewline !== false;
+    $('#cfgTestResult').classList.add('hidden');
+  }
+
+  function readSettingsForm() {
+    cfg.owner = $('#cfgOwner').value.trim();
+    cfg.repo = $('#cfgRepo').value.trim().replace(/\.git$/, '');
+    cfg.branch = $('#cfgBranch').value.trim() || 'main';
+    cfg.path = $('#cfgPath').value.trim().replace(/^\/+/, '') || 'watchlist.txt';
+    cfg.remember = $('#cfgRemember').checked;
+    cfg.tmdbKey = $('#cfgTmdb').value.trim();
+    cfg.omdbKey = $('#cfgOmdb').value.trim();
+    cfg.traktKey = $('#cfgTrakt').value.trim();
+    cfg.simklKey = $('#cfgSimkl').value.trim();
+    cfg.lang = $('#cfgLang').value || 'es-ES';
+    cfg.autoLoad = $('#cfgAutoLoad').checked;
+    cfg.finalNewline = $('#cfgFinalNewline').checked;
+    token = $('#cfgToken').value.trim();
+  }
+
+  function showCfgResult(ok, html) {
+    const box = $('#cfgTestResult');
+    box.className = 'rounded-lg border px-3 py-2 text-[12px] leading-relaxed ' +
+      (ok ? 'border-emerald-400/30 bg-emerald-400/5 text-emerald-200'
+          : 'border-red-400/30 bg-red-400/5 text-red-200');
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  }
+
+  /* ===========================================================================
+   * 6b · RENDERIZADO
+   * ======================================================================== */
+
+  /* ------------------------------ Cabecera ------------------------------ */
+  function renderHeader() {
+    const badges = $('#statusBadges');
+    const repo = ghConfigured()
+      ? '<span class="badge badge-emerald" data-tip="Repositorio configurado">' +
+        '<svg viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.9 10.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.7 2.7 1.2 3.3.9.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3 0 0 1-.3 3.2 1.2a10.7 10.7 0 0 1 5.8 0C14.7 3.6 15.7 4 15.7 4c.6 1.5.2 2.7.1 3 .8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>' +
+        esc(cfg.owner + '/' + cfg.repo) + '</span>'
+      : '<span class="badge badge-amber">Configura el repositorio</span>';
+    const tokenBadge = token
+      ? '<span class="badge badge-teal">Token activo</span>'
+      : '<span class="badge badge-zinc">Sin token (solo lectura)</span>';
+    const shaBadge = remoteSha
+      ? '<span class="badge badge-sky font-mono" data-tip="sha del archivo remoto">' + esc(String(remoteSha).slice(0, 7)) + '</span>'
+      : '';
+    const dirtyBadge = isDirty()
+      ? '<span class="badge badge-amber">Cambios sin guardar</span>'
+      : (remoteMeta && remoteMeta.fetchedAt ? '<span class="badge badge-emerald">Sincronizado</span>' : '');
+
+    badges.innerHTML = repo + tokenBadge + shaBadge + dirtyBadge;
+
+    const badgeDirty = $('#dirtyBadge');
+    if (badgeDirty) {
+      badgeDirty.innerHTML = isDirty()
+        ? '<span class="badge badge-amber">● sin guardar</span>'
+        : (remoteMeta && remoteMeta.fetchedAt ? '<span class="badge badge-emerald">guardado</span>' : '');
+    }
+    renderProviders();
+  }
+
+  /* ------------------------ Selector de fuente de búsqueda ------------------------ */
+  function renderSourcePicker() {
+    const sel = $('#sourceSelect');
+    if (!sel) return;
+    const all = Object.keys(SOURCES);
+    const usable = all.filter(sourceUsable);
+    const enabled = usable.filter(isEnabled);
+    const off = usable.filter((id) => !isEnabled(id));
+    const noKey = all.filter((id) => !sourceUsable(id));
+
+    const group = (label, ids, dis) => (ids.length
+      ? '<optgroup label="' + esc(label) + '">' + ids.map((id) =>
+          '<option value="' + id + '"' + (dis ? ' disabled' : '') + '>' + esc(SOURCES[id].label) +
+          (dis ? (dis === 'key' ? ' · sin clave' : ' · desactivada') : '') + '</option>').join('') + '</optgroup>'
+      : '');
+
+    let html = '<option value="all">★ Todas las fuentes (' + enabled.length + ')</option>';
+    html += group('Sin clave', enabled.filter((id) => SOURCES[id].group === 'free'), false);
+    html += group('Con clave gratuita', enabled.filter((id) => SOURCES[id].group === 'key'), false);
+    html += group('Desactivadas en «Fuentes de datos»', off, 'off');
+    html += group('Requieren clave (Ajustes)', noKey, 'key');
+    sel.innerHTML = html;
+
+    let want = searchSource;
+    if (want !== 'all' && all.indexOf(want) === -1) want = 'all';
+    sel.value = want;
+    if (!sel.value && sel.options.length) sel.value = 'all';
+    searchSource = sel.value || 'all';
+
+    const counter = $('#sourceCount');
+    if (counter) counter.textContent = enabled.length + ' activas';
+    const hint = $('#searchHint');
+    if (hint && !searching && !results.length) {
+      hint.textContent = enabled.length
+        ? 'Escribe un título y pulsa Enter: se buscará en ' + (enabled.length === 1 ? sourceLabel(enabled[0]) : enabled.length + ' fuentes a la vez') + '.'
+        : 'No hay fuentes activas: activa alguna en «Fuentes de datos» o añade una clave en Ajustes.';
+    }
+  }
+
+  /* --------------------------- Fuentes de datos --------------------------- */
+  function renderProviders() {
+    const ul = $('#providersList');
+    if (!ul) return;
+    const dot = { ok: 'bg-emerald-400', error: 'bg-red-400', busy: 'bg-amber-400', off: 'bg-amber-400', idle: 'bg-zinc-500' };
+    const ids = Object.keys(SOURCES);
+    const groups = [
+      { key: 'free', title: 'Sin clave', hint: 'funcionan ya' },
+      { key: 'key', title: 'Con clave gratuita', hint: 'opcionales, añaden cobertura' }
+    ];
+    ul.innerHTML = groups.map((g) => {
+      const items = ids.filter((id) => SOURCES[id].group === g.key);
+      if (!items.length) return '';
+      return '<li class="bg-zinc-900/50 px-4 py-1.5"><p class="text-[10.5px] font-semibold uppercase tracking-wide text-zinc-500">' +
+          esc(g.title) + ' <span class="font-normal normal-case tracking-normal">· ' + esc(g.hint) + '</span></p></li>' +
+        items.map((id) => {
+          const s = SOURCES[id], p = providerState[id] || { state: 'idle', detail: '—' };
+          const usable = sourceUsable(id), enabled = isEnabled(id);
+          const state = (usable && enabled) ? p.state : 'idle';
+          return '<li class="flex items-center gap-2.5 px-4 py-2.5' + (enabled ? '' : ' opacity-55') + '">' +
+            '<span class="h-2 w-2 shrink-0 rounded-full ' + (dot[state] || dot.idle) + (state === 'busy' ? ' animate-pulse' : '') + '"></span>' +
+            '<div class="min-w-0 flex-1">' +
+              '<p class="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-zinc-200">' + esc(s.label) +
+                (usable ? '' : '<span class="badge badge-zinc">sin clave</span>') +
+                (s.experimental ? '<span class="badge badge-amber" data-tip="Servicio comunitario: puede caer sin aviso">experimental</span>' : '') +
+                (enabled ? '' : '<span class="badge badge-zinc">desactivada</span>') +
+              '</p>' +
+              '<p class="truncate text-[11px] text-zinc-500" title="' + esc(p.detail) + '">' + esc(p.detail) + '</p>' +
+            '</div>' +
+            '<label class="flex shrink-0 cursor-pointer items-center" data-tip="Usar en la búsqueda «Todas»">' +
+              '<input type="checkbox" class="h-3.5 w-3.5 accent-emerald-400" data-toggle-source="' + id + '"' +
+              (enabled ? ' checked' : '') + ' /></label>' +
+            '<button class="btn btn-ghost btn-xs shrink-0" data-test-provider="' + id + '"' + (usable ? '' : ' disabled') + '>Probar</button>' +
+          '</li>';
+        }).join('');
+    }).join('');
+  }
+
+  /* ------------------------------ Resultados ------------------------------ */
+  function posterBox(url, title, cls) {
+    const size = cls || 'h-20 w-14';
+    if (url) {
+      return '<div class="' + size + ' shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-800">' +
+        '<img src="' + esc(url) + '" alt="" loading="lazy" referrerpolicy="no-referrer" class="h-full w-full object-cover" ' +
+        'onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'grid h-full w-full place-items-center text-[10px] text-zinc-500\',textContent:\'sin imagen\'}))" /></div>';
+    }
+    return '<div class="' + size + ' grid shrink-0 place-items-center rounded-md border border-zinc-700 bg-zinc-800 text-[10px] text-zinc-500">sin imagen</div>';
+  }
+
+  function typeBadge(mediaType) {
+    if (mediaType === 'movie') return '<span class="badge badge-sky">Película</span>';
+    if (mediaType === 'series') return '<span class="badge badge-violet">Serie</span>';
+    return '<span class="badge badge-zinc">IMDb</span>';
+  }
+
+  function renderResults() {
+    const box = $('#results');
+    if (!box) return;
+    const visible = results.filter((r) => searchTypeFilter === 'all' || !r.mediaType || r.mediaType === searchTypeFilter);
+
+    if (searching) {
+      box.innerHTML = Array.from({ length: 4 }).map(() =>
+        '<div class="flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2.5">' +
+          '<div class="skeleton h-20 w-14"></div><div class="flex-1 space-y-2 py-1">' +
+          '<div class="skeleton h-3.5 w-3/4"></div><div class="skeleton h-3 w-1/3"></div><div class="skeleton h-3 w-1/2"></div>' +
+        '</div></div>').join('');
+      return;
+    }
+    if (!visible.length) {
+      box.innerHTML = '<p class="rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center text-[12px] text-zinc-500">' +
+        (results.length ? 'Ningún resultado coincide con el filtro de tipo.' : 'Sin resultados todavía. Escribe un título y pulsa Buscar.') + '</p>';
+      return;
+    }
+
+    const used = new Set(seq.filter((it) => it.kind === 'entry').map((it) => it.entry.imdbId));
+    box.innerHTML = visible.map((r, i) => {
+      const inList = r.imdbId && used.has(r.imdbId);
+      const year = r.year && /^\d{4}/.test(r.year) ? r.year : '';
+      const sources = r.sources || [];
+      const srcBadges = sources.length > 1
+        ? '<span class="badge badge-violet" data-tip="' + esc(sources.map(sourceLabel).join(' · ')) + '">✓ ' + sources.length + ' fuentes</span>'
+        : sources.length === 1
+          ? '<span class="badge badge-zinc">' + esc(sourceLabel(sources[0])) + '</span>'
+          : '';
+      const seasonBadge = (r.seasons && r.seasons.count) ? '<span class="badge badge-teal">' + r.seasons.count + ' temporadas</span>' : '';
+      const resolveBadge = r.imdbId ? '' : '<span class="badge badge-amber">se resolverá el IMDb id</span>';
+      const listBadge = inList ? '<span class="badge badge-emerald">ya en la lista</span>' : '';
+      return '<article class="row-enter flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2.5 transition hover:border-zinc-700 hover:bg-zinc-900/70" data-idx="' + i + '">' +
+        posterBox(r.poster, r.title) +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex items-start gap-2">' +
+            '<h3 class="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-zinc-100" title="' + esc(r.title) + '">' + esc(r.title) + '</h3>' +
+            (year ? '<span class="badge badge-zinc">' + esc(year) + '</span>' : '') +
+          '</div>' +
+          '<div class="mt-1 flex flex-wrap items-center gap-1.5">' + typeBadge(r.mediaType) +
+            '<code class="badge badge-zinc font-mono">' + esc(r.imdbId || (r.tmdbId ? 'tmdb:' + r.tmdbId : '—')) + '</code>' +
+            seasonBadge + listBadge + resolveBadge + srcBadges +
+          '</div>' +
+          (r.subtitle ? '<p class="mt-1 truncate text-[11px] text-zinc-500">' + esc(r.subtitle) + '</p>' : '') +
+          (r.overview ? '<p class="mt-0.5 line-clamp-2 text-[11px] text-zinc-500">' + esc(r.overview) + '</p>' : '') +
+          '<div class="mt-2 flex flex-wrap gap-1.5">' +
+            '<button class="btn btn-xs btn-primary" data-add="' + i + '">' +
+              '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>' +
+              (r.mediaType === 'series' ? 'Elegir temporada y episodio' : 'Añadir a la lista') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</article>';
+    }).join('');
+    lastVisible = visible;
+  }
+
+  /* -------------------------------- Lista -------------------------------- */
+  function renderList() {
+    const box = $('#list');
+    const showReworked = true;
+    const items = seq.map((it, i) => ({ it: it, i: i })).filter((o) => o.it.kind !== 'blank' || showReworked);
+    const stats = statsOf(seq);
+
+    $('#wlCount').textContent = stats.entries + (stats.entries === 1 ? ' entrada' : ' entradas');
+
+    $('#wlStats').innerHTML = [
+      ['Películas', stats.movies, 'badge-sky'],
+      ['Series', stats.series, 'badge-violet'],
+      ['Temporadas', stats.seasons, 'badge-teal'],
+      ['Episodios', stats.episodes, 'badge-emerald'],
+      ['Sin clasificar', stats.unknown, 'badge-amber'],
+      ['Comentarios', stats.comments, 'badge-zinc'],
+      ['Líneas no válidas', stats.invalid, 'badge-red']
+    ].filter((s) => s[1] > 0)
+      .map((s) => '<span class="badge ' + s[2] + '"' +
+        (s[0] === 'Sin clasificar' ? ' data-tip="Sin datos de tipo: añade una API key de OMDb para clasificarlas"' : '') +
+        '>' + s[0] + ': ' + s[1] + '</span>').join('') ||
+      '<span class="badge badge-zinc">lista vacía</span>';
+
+    if (!items.length) {
+      box.innerHTML = '<p class="rounded-xl border border-dashed border-zinc-800 px-4 py-8 text-center text-[12px] text-zinc-500">' +
+        'La lista está vacía. Busca un título, añádelo a mano o carga el <code>watchlist.txt</code> desde GitHub.</p>';
+      return;
+    }
+
+    box.innerHTML = items.map((o) => {
+      const it = o.it, i = o.i;
+      if (it.kind === 'blank') {
+        return '<div class="row-enter flex items-center gap-2 rounded-lg border border-dashed border-zinc-800/80 px-3 py-1.5 text-[11px] text-zinc-600">' +
+          '<span class="font-mono">línea en blanco</span>' +
+          '<button class="btn btn-ghost btn-xs ml-auto" data-del="' + i + '" aria-label="Eliminar línea">quitar</button></div>';
+      }
+      if (it.kind === 'comment') {
+        return '<div class="row-enter flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2">' +
+          '<code class="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[12px] text-zinc-500">' + esc(it.text) + '</code>' +
+          '<span class="badge badge-zinc shrink-0">comentario</span>' +
+          '<button class="btn btn-ghost btn-xs shrink-0 text-red-300/70" data-del="' + i + '" aria-label="Eliminar comentario">' +
+            '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>' +
+          '</button></div>';
+      }
+      if (it.kind === 'invalid') {
+        return '<div class="row-enter flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-400/5 px-3 py-2">' +
+          '<code class="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[12px] text-red-200">' + esc(it.text) + '</code>' +
+          '<span class="badge badge-red shrink-0" data-tip="No cumple el formato watchlist">no válida</span>' +
+          '<button class="btn btn-ghost btn-xs shrink-0 text-red-300/70" data-del="' + i + '" aria-label="Eliminar línea">' +
+            '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>' +
+          '</button></div>';
+      }
+
+      const e = it.entry;
+      const g = granularityOf(e);
+      const gClass = g.kind === 'episode' ? 'badge-emerald' : g.kind === 'season' ? 'badge-teal'
+        : g.kind === 'series' ? 'badge-violet' : g.kind === 'movie' ? 'badge-sky' : 'badge-zinc';
+      const title = describeEntry(e) || 'Sin título';
+      const sourceBadge = e.source === 'remote' ? '' :
+        '<span class="badge badge-zinc" data-tip="Origen del título">' + esc(e.source === 'tmdb-url' ? 'URL TMDB' : e.source) + '</span>';
+      return '<article class="row-enter flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-2.5 transition hover:border-zinc-700" data-row="' + i + '">' +
+        posterBox(e.poster, title) +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex items-start gap-2">' +
+            '<h3 class="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-zinc-100" title="' + esc(title) + '">' + esc(title) + '</h3>' +
+            (e.year ? '<span class="badge badge-zinc">' + esc(e.year) + '</span>' : '') +
+          '</div>' +
+          '<div class="mt-1 flex flex-wrap items-center gap-1.5">' +
+            '<span class="badge ' + gClass + '">' + esc(g.text) + '</span>' +
+            '<code class="badge badge-zinc font-mono" data-tip="Línea que se escribirá en watchlist.txt">' + esc(lineFor(e)) + '</code>' +
+            sourceBadge +
+          '</div>' +
+        '</div>' +
+        '<div class="flex shrink-0 flex-col gap-1">' +
+          '<button class="btn btn-ghost btn-xs" data-edit="' + i + '" data-tip="Cambiar temporada/episodio" aria-label="Editar">' +
+            '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+          '</button>' +
+          '<button class="btn btn-ghost btn-xs text-red-300/70" data-del="' + i + '" data-tip="Eliminar" aria-label="Eliminar">' +
+            '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</article>';
+    }).join('');
+  }
+
+  /* ------------------------------ Vista previa ------------------------------ */
+  function highlightLine(line, diff) {
+    const added = diff && diff.addedSet.has(line);
+    const removed = !added && diff && diff.removedSet.has(line);
+    if (/^\s*$/.test(line)) return '<span class="ln ln-blank">·</span>';
+    if (/^\s*#/.test(line)) return '<span class="ln ln-comment' + (added ? ' mark-add' : '') + (removed ? ' mark-del' : '') + '">' + esc(line) + '</span>';
+    const m = /^(tt\d+)(:s\d+)?(:e\d+)?(.*)$/.exec(line.trim());
+    if (!m) return '<span class="ln ln-invalid' + (removed ? ' mark-del' : '') + '">' + esc(line) + '</span>';
+    const idHtml = esc(m[1]);
+    const seasonHtml = m[2] ? esc(m[2]) : '';
+    const epHtml = m[3] ? esc(m[3]) : '';
+    return '<span class="ln ln-entry' + (added ? ' mark-add' : '') + (removed ? ' mark-del' : '') + '">' +
+      '<span class="ln-id">' + idHtml + '</span>' +
+      '<span class="ln-season">' + seasonHtml + epHtml + '</span>' +
+      esc(m[4]) + '</span>';
+  }
+
+  function renderPreview() {
+    const text = serializeWatchlist(seq, { finalNewline: cfg.finalNewline });
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+    const d = diffLines(remoteText, text);
+    const diff = { addedSet: new Set(d.added), removedSet: new Set(d.removed) };
+
+    let html = '';
+    for (let n = 0; n < lines.length; n += 1) {
+      const line = lines[n];
+      html += '<span class="line"><span class="lno">' + (n + 1) + '</span>' + highlightLine(line, diff) + '</span>';
+    }
+    $('#previewCode').innerHTML = html || '<span class="ln ln-comment">(archivo vacío)</span>';
+    $('#previewPath').textContent = (cfg.path || 'watchlist.txt');
+
+    const stats = statsOf(seq);
+    $('#previewStats').textContent = lines.length + ' líneas · ' + stats.entries + ' entradas · ' +
+      new Blob([text]).size.toLocaleString('es-ES') + ' bytes';
+
+    $('#diffBadges').innerHTML =
+      (d.added.length ? '<span class="badge badge-emerald">+' + d.added.length + '</span>' : '') +
+      (d.removed.length ? '<span class="badge badge-red">−' + d.removed.length + '</span>' : '') +
+      (loaded && !d.added.length && !d.removed.length ? '<span class="badge badge-zinc">sin cambios</span>' : '');
+
+    const info = $('#remoteInfo');
+    if (remoteMeta && remoteMeta.fetchedAt) {
+      const when = new Date(remoteMeta.fetchedAt);
+      info.textContent = (remoteMeta.updatedBy ? 'último commit: ' + remoteMeta.updatedBy + ' · ' : '') +
+        'leído ' + when.toLocaleTimeString('es-ES');
+    } else {
+      info.textContent = '';
+    }
+  }
+
+  function isDirty() {
+    if (!loaded) return seq.some((it) => it.kind === 'entry' || it.kind === 'comment' || it.kind === 'invalid');
+    return seq.some((it) => it.kind !== 'blank') && serializeWatchlist(seq, { finalNewline: cfg.finalNewline }) !== remoteText;
+  }
+
+  /** Redibuja todo lo dependiente del estado. */
+  function renderAll() {
+    renderHeader();
+    renderList();
+    renderPreview();
+    updateWriteTitlesButton();
+    const pushBtns = [$('#btnPush'), $('#btnPush2')];
+    pushBtns.forEach((b) => {
+      if (!b) return;
+      b.disabled = !ghConfigured();
+      b.classList.toggle('opacity-60', !ghConfigured());
+    });
+    const badge = $('#dirtyBadge');
+    if (badge) badge.title = isDirty() ? 'Hay cambios locales sin guardar' : 'Sin cambios pendientes';
+    document.title = (isDirty() ? '● ' : '') + 'Peerflix Static · Gestor de Watchlist';
+  }
+
+  function touch() { renderAll(); persistState(); }
+
+  /* ===========================================================================
+   * 7 · ACCIONES
+   * ======================================================================== */
+  let lastVisible = [];   // resultados realmente pintados (índice de los botones)
+
+  /* ------------------------------- Búsqueda ------------------------------- */
+  async function doSearch() {
+    const q = $('#searchInput').value.trim();
+    $('#btnClearSearch').classList.toggle('hidden', !q);
+    if (!q) { $('#searchHint').textContent = 'Escribe al menos un título para buscar.'; $('#searchInput').focus(); return; }
+
+    const multi = searchSource === 'all';
+    const usable = usableSources();
+    if (!usable.length) {
+      toast('No hay ninguna fuente activa. Activa al menos una en «Fuentes de datos» o añade una clave en Ajustes.', 'warn', 'Sin fuentes', 8000);
+      openSettings();
+      return;
+    }
+    if (!multi && !sourceUsable(searchSource)) {
+      setProvider(searchSource, 'error', 'Falta la clave');
+      toast(keyHint(searchSource), 'warn', sourceLabel(searchSource));
+      openSettings();
+      return;
+    }
+
+    searching = true;
+    const ticket = ++searchTicket;
+    const t0 = Date.now();
+    renderResults();
+    $('#searchHint').innerHTML = 'Buscando «<strong class="text-zinc-300">' + esc(q) + '</strong>» en ' +
+      (multi ? 'las ' + usable.length + ' fuentes activas' : esc(sourceLabel(searchSource))) + '…';
+    const chips = $('#sourceChips');
+    if (chips) chips.innerHTML = '';
+    setBusy($('#btnSearch'), true);
+
+    try {
+      const payload = multi ? await searchAllSources(q) : await searchOneSource(searchSource, q);
+      if (ticket !== searchTicket) return;              // respuesta obsoleta
+      searchTookMs = Date.now() - t0;
+      results = payload.results.slice(0, MAX_RESULTS);
+      renderSearchChips(payload);
+      if (!results.length) {
+        $('#searchHint').textContent = 'Sin resultados para «' + q + '» en ' +
+          (multi ? usable.length + ' fuentes' : sourceLabel(searchSource)) + '. Prueba otros términos, activa más fuentes o añade el ID a mano.';
+      } else {
+        const extra = payload.results.length > MAX_RESULTS ? ' (mostrando ' + MAX_RESULTS + ' de ' + payload.results.length + ')' : '';
+        const merged = results.filter((r) => (r.sources || []).length > 1).length;
+        $('#searchHint').textContent = results.length + ' resultados' + extra + ' · ' + searchTookMs + ' ms' +
+          (merged ? ' · ' + merged + ' confirmados por varias fuentes' : '');
+      }
+    } catch (err) {
+      if (ticket !== searchTicket) return;
+      results = [];
+      const msg = (err && err.message) || 'Error desconocido en la búsqueda.';
+      const kind = err && err.kind;
+      setProvider(searchSource === 'all' ? 'imdb' : searchSource, 'error', msg.slice(0, 90));
+      $('#searchHint').textContent = msg;
+      toast(msg, 'error', 'Búsqueda fallida', 9000);
+      if (kind === 'config') openSettings();
+    } finally {
+      searching = false;
+      if (ticket === searchTicket) { renderResults(); setBusy($('#btnSearch'), false); }
+    }
+  }
+
+  /** Chips con el resultado por fuente (incluye las que fallaron). */
+  function renderSearchChips(payload) {
+    const box = $('#sourceChips');
+    if (!box) return;
+    const ids = Object.keys(payload.statuses);
+    box.innerHTML = ids.map((id) => {
+      const st = payload.statuses[id] || { ok: false, count: 0, message: '' };
+      const cls = !st.ok ? 'badge-red' : (st.count ? 'badge-emerald' : 'badge-zinc');
+      return '<span class="badge ' + cls + '" data-tip="' + esc(st.message) + '">' +
+        esc(sourceLabel(id)) + (st.ok ? ' · ' + st.count : ' ✕') + '</span>';
+    }).join('');
+    const failed = ids.filter((id) => payload.statuses[id] && payload.statuses[id].ok === false);
+    if (failed.length) {
+      toast(failed.map((id) => sourceLabel(id) + ': ' + payload.statuses[id].message).join('\n'),
+        'warn', failed.length === 1 ? 'Una fuente no respondió' : failed.length + ' fuentes no respondieron', 9000);
+    }
+  }
+
+  /* --------------------------- Añadir a la lista --------------------------- */
+  function duplicateOf(entry) {
+    const k = keyOf(entry);
+    return seq.some((it) => it.kind === 'entry' && keyOf(it.entry) === k);
+  }
+
+  function pushItem(item) { seq.push(item); return item; }
+
+  function addEntry(entry, opts) {
+    const options = opts || {};
+    if (!entry.imdbId || !/^tt\d+$/.test(entry.imdbId)) {
+      toast('La entrada no tiene un ID IMDb válido todavía.', 'warn');
+      return false;
+    }
+    if (duplicateOf(entry)) {
+      if (!options.silentDup) {
+        toast('«' + (describeEntry(entry) || entry.imdbId) + '» ya está en la lista (misma línea).', 'warn', 'Duplicado', 4000);
+      }
+      return false;
+    }
+    seq.push({ kind: 'entry', entry: entry });
+    if (!options.silent) touch();
+    return true;
+  }
+
+  /** Rellena título/año/póster/tipo con OMDb (o TMDB) si faltan datos. */
+  async function enrichEntry(entry, opts) {
+    const options = opts || {};
+    const needs = !entry.title || !entry.poster || !entry.year || !entry.mediaType || !entry.__seasons || options.force;
+    if (!needs || !entry.imdbId) return null;
+    const info = await detailByImdbId(entry.imdbId, {
+      mediaType: entry.mediaType, tmdbId: entry.tmdbId, tmdbKind: entry.tmdbKind
+    });
+    if (!info) return null;
+    if (!entry.title && info.title) entry.title = info.title;
+    if (!entry.year && info.year) entry.year = info.year;
+    if (!entry.poster && info.poster) entry.poster = info.poster;
+    if (!entry.mediaType && info.mediaType) entry.mediaType = info.mediaType;
+    if (!entry.__overview && info.overview) entry.__overview = info.overview;
+    if (!entry.__seasons && info.seasons) entry.__seasons = info.seasons.count || info.seasons;
+    return info;
+  }
+
+  /** Resuelve el IMDb id de un resultado (TMDB / OMDb / texto libre). */
+  async function ensureImdbId(res) {
+    if (res.imdbId && /^tt\d+$/.test(res.imdbId)) return res.imdbId;
+    const id = await resolveImdbId(res);   // TMDB → Wikidata → imdbapi.dev → Cinemeta → TVMaze → OMDb
+    if (id) res.imdbId = id;
+    return id;
+  }
+
+  /** Botón «Añadir» de una tarjeta de resultado. */
+  async function addFromResult(res) {
+    const entry = makeEntry({
+      imdbId: res.imdbId,
+      title: res.title,
+      year: res.year,
+      poster: res.poster,
+      mediaType: res.mediaType,
+      tmdbId: res.tmdbId || null,
+      source: res.source
+    });
+
+    if (res.mediaType === 'series') { openPicker({ entry: entry, res: res }); return; }
+
+    const t = toast('Añadiendo «' + (res.title || res.imdbId) + '»…', 'loading', null, 0);
+    if (!entry.imdbId) {
+      t.update('Resolviendo el ID de IMDb…', 'loading', 0);
+      const id = await ensureImdbId(res);
+      if (!id) {
+        t.update('No se pudo obtener el ID de IMDb desde «' + sourceLabel(res.source) + '». Añádelo a mano con el formato tt1234567.', 'error', 9000);
+        return;
+      }
+      entry.imdbId = id;
+    }
+    if (!entry.title || !entry.poster || !entry.mediaType) await enrichEntry(entry);
+    if (entry.__seasons) delete entry.__seasons;
+    const ok = addEntry(entry);
+    t.update(ok ? 'Añadido: ' + lineFor(entry) : 'No se añadió (duplicado o ID inválido).', ok ? 'success' : 'warn');
+  }
+
+  /* ------------------- Modal temporada / episodio (picker) ------------------- */
+  const PICK_MODES = ['series', 'season', 'episodes'];
+
+  function pickerMode() {
+    const active = $('#pickMode button.active');
+    return active ? active.dataset.mode : 'episodes';
+  }
+
+  /**
+   * Modos permitidos. Regla del proyecto: las series se añaden siempre con
+   * temporada Y episodio concretos (`tt1234567:s3:e4`). Los modos «serie
+   * completa» y «temporada» sólo aparecen al editar una línea que ya existía
+   * así en el archivo, para poder guardarla tal cual.
+   */
+  function availablePickerModes() {
+    const legacy = (pickerCtx || {}).legacyMode;
+    if (!legacy || PICK_MODES.indexOf(legacy) === -1) return ['episodes'];
+    return legacy === 'episodes' ? ['episodes'] : ['episodes', legacy];
+  }
+
+  function setPickerMode(mode) {
+    const allowed = availablePickerModes();
+    if (allowed.indexOf(mode) === -1) mode = allowed[0];
+    $$('#pickMode button').forEach((b) => {
+      const ok = allowed.indexOf(b.dataset.mode) !== -1;
+      b.classList.toggle('hidden', !ok);
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    const seasonRow = $('#pickSeasonRow');
+    seasonRow.classList.toggle('hidden', mode === 'series');
+    $('#pickEpRow').classList.toggle('hidden', mode !== 'episodes');
+    $('#pickEpRow').classList.toggle('grid', mode === 'episodes');
+    const rule = $('#pickRule');
+    if (rule) {
+      rule.textContent = allowed.length > 1
+        ? 'Serie: se añaden temporada y episodio concretos. La opción adicional sólo mantiene esta línea sin episodios.'
+        : 'Las series se añaden siempre con temporada y episodio concretos (formato tt1234567:s3:e4).';
+    }
+    updatePickerPreview();
+  }
+
+  function openPicker(ctx) {
+    pickerCtx = ctx || {};
+    const e = pickerCtx.entry || makeEntry({ imdbId: '' });
+    const res = pickerCtx.res || {};
+    /* Serie nueva (no es una edición) → se exige temporada + episodio */
+    pickerCtx.isNewSeries = !pickerCtx.replaceAt && e.mediaType !== 'movie';
+
+    $('#pickTitle').textContent = e.title || res.title || 'Serie';
+    $('#pickPosterWrap').innerHTML = posterBox(e.poster || res.poster, e.title, 'h-20 w-14');
+    const meta = [e.year || res.year, e.mediaType === 'movie' ? 'Película' : 'Serie'].filter(Boolean).join(' · ');
+    $('#pickSub').textContent = meta;
+    $('#pickImdb').textContent = e.imdbId || 'ID se resolverá con TMDB…';
+
+    /* Estado inicial de temporadas: lo que ya supiéramos (p. ej. de OMDb) */
+    applySeriesInfo(e.__seasons ? {
+      count: toInt(e.__seasons, null),
+      perSeason: null,
+      source: e.source || 'manual'
+    } : null, e);
+    const legacyMode = e.season ? (e.episode ? 'episodes' : 'season') : 'series';
+    if (pickerCtx.isNewSeries) {
+      e.season = toInt(e.season, null);   // se exige elegir temporada y episodio
+      e.episode = null;
+      pickerCtx.legacyMode = null;
+    } else {
+      pickerCtx.legacyMode = legacyMode;  // edición: se respeta el formato actual
+    }
+    $('#pickEpFrom').value = String(toInt(e.episode, 1));
+    $('#pickEpTo').value = String(toInt(e.episode, 1));
+    $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Buscando temporadas y episodios…</span>';
+
+    setPickerMode(pickerCtx.mode || (pickerCtx.isNewSeries ? 'episodes' : legacyMode));
+    openModal('#modalPicker');
+    updatePickerPreview();
+
+    /* Metadatos completos (IMDb id, póster y episodios por temporada) en segundo plano */
+    resolvePickerMeta(e, res).catch(function () {});
+  }
+
+  async function resolvePickerMeta(e, res) {
+    /* 1 · ID de IMDb (si la fuente no lo traía) */
+    if (!e.imdbId) {
+      const id = await resolveImdbId({
+        imdbId: '', title: e.title || (res && res.title), year: e.year || (res && res.year),
+        source: (res && res.source) || e.source, tmdbId: e.tmdbId || (res && res.tmdbId),
+        tmdbKind: e.tmdbKind || (res && res.tmdbKind)
+      });
+      if (id) { e.imdbId = id; $('#pickImdb').textContent = id; }
+    }
+    /* 2 · Ficha básica (póster, año, tipo) */
+    const info = await detailByImdbId(e.imdbId, { mediaType: e.mediaType, tmdbId: e.tmdbId, tmdbKind: e.tmdbKind });
+    if (info) {
+      if (!e.poster && info.poster) { e.poster = info.poster; $('#pickPosterWrap').innerHTML = posterBox(e.poster, e.title, 'h-20 w-14'); }
+      if (!e.year && info.year) e.year = info.year;
+      if (!e.title && info.title) { e.title = info.title; $('#pickTitle').textContent = e.title; }
+      if (!e.mediaType && info.mediaType) e.mediaType = info.mediaType;
+    }
+    if (!e.mediaType) e.mediaType = 'series';
+    $('#pickSub').textContent = [e.year, e.mediaType === 'movie' ? 'Película' : 'Serie'].filter(Boolean).join(' · ');
+
+    /* 3 · Temporadas y episodios por temporada */
+    if (e.mediaType === 'movie') {
+      $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Es una película: se añadirá una única línea.</span>';
+    } else {
+      const hint = await seriesInfo({ imdbId: e.imdbId, tmdbId: e.tmdbId, tmdbKind: e.tmdbKind, mediaType: e.mediaType });
+      applySeriesInfo(hint, e);
+    }
+    updatePickerPreview();
+    return e;
+  }
+
+  /** Vuelca la información de temporadas en el desplegable del modal. */
+  function applySeriesInfo(hint, entry) {
+    const sel = $('#pickSeasonSelect'), num = $('#pickSeasonNum');
+    const e = entry || (pickerCtx && pickerCtx.entry) || {};
+    if (pickerCtx) pickerCtx.seriesHint = hint || null;
+    const known = (hint && toInt(hint.count, null)) || 0;
+    if (known) {
+      let opts = '';
+      for (let i = 1; i <= known; i += 1) {
+        const eps = hint.perSeason && hint.perSeason[i] ? ' — ' + hint.perSeason[i] + ' ep.' : '';
+        opts += '<option value="' + i + '">Temporada ' + i + eps + '</option>';
+      }
+      sel.innerHTML = opts;
+      sel.classList.remove('hidden');
+      num.classList.add('hidden');
+      sel.value = String(clamp(toInt(e.season, 1), 1, known));
+      $('#pickSeasonInfo').innerHTML = '<strong class="text-zinc-300">' + known + ' temporada(s)</strong>' +
+        (hint.source ? ' · fuente: ' + esc(sourceLabel(hint.source)) : '');
+    } else {
+      sel.innerHTML = '';          /* evita arrastrar opciones de la serie anterior */
+      sel.classList.add('hidden');
+      num.classList.remove('hidden');
+      num.value = String(toInt(e.season, 1));
+      if (hint === null) {
+        $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Sin datos de temporadas: escribe la que quieras.</span>';
+      }
+    }
+  }
+
+  /** Líneas que se añadirán según la configuración actual del picker. */
+  /** Temporada seleccionada: usa el desplegable si está visible y tiene valor. */
+  function readSeason() {
+    const sel = $('#pickSeasonSelect');
+    const num = $('#pickSeasonNum');
+    const useSelect = !sel.classList.contains('hidden') && String(sel.value || '') !== '';
+    return clamp(toInt(useSelect ? sel.value : num.value, 1), 1, 999);
+  }
+
+  function pickerLines() {
+    if (!pickerCtx) return [];
+    const e = pickerCtx.entry || {};
+    const mode = pickerMode();
+    const season = readSeason();
+    const mk = (extra) => {
+      const it = makeEntry(Object.assign({}, e, extra, { pinned: false }));
+      return { entry: it, line: lineFor(it) };
+    };
+    if (mode === 'series') return [mk({ season: null, episode: null })];
+    if (mode === 'season') return [mk({ season: season, episode: null })];
+    const from = toInt($('#pickEpFrom').value, 1);
+    const to = clamp(toInt($('#pickEpTo').value, from), from, from + 199);
+    const out = [];
+    for (let ep = from; ep <= to; ep += 1) out.push(mk({ season: season, episode: ep }));
+    return out;
+  }
+
+  function updatePickerPreview() {
+    const lines = pickerLines();
+    const pre = $('#pickPreview');
+    pre.innerHTML = lines.slice(0, 30).map((l) => esc(l.line)).join('\n') +
+      (lines.length > 30 ? '\n<span class="text-zinc-500">… y ' + (lines.length - 30) + ' líneas más</span>' : '');
+    const e = pickerCtx && pickerCtx.entry ? pickerCtx.entry : {};
+    const hint = pickerCtx && pickerCtx.seriesHint;
+    const warn = [];
+    if (!e.imdbId) warn.push('Sin ID de IMDb todavía: se intentará resolver al añadir.');
+    if (!String(e.title || '').trim()) warn.push('Sin título: la línea llevará solo el ID.');
+
+    let epInfo = '';
+    if (pickerMode() === 'episodes' && !lines.length) warn.push('Elige la temporada y el episodio que quieres añadir.');
+    if (pickerMode() === 'episodes' && hint) {
+      const season = readSeason();
+      const avail = hint.perSeason && hint.perSeason[season] ? hint.perSeason[season] : null;
+      const from = toInt($('#pickEpFrom').value, 1);
+      const to = clamp(toInt($('#pickEpTo').value, from), from, from + 199);
+      if (avail) {
+        epInfo = avail + ' episodios en la temporada ' + season;
+        if (to > avail) warn.push('La temporada ' + season + ' sólo tiene ' + avail + ' episodios según ' + sourceLabel(hint.source || '') + '.');
+      } else if (hint.count) {
+        epInfo = 'episodios de la temporada ' + season + ': sin datos';
+      }
+    }
+    if (lines.length > 1) warn.push(lines.length + ' líneas nuevas.');
+    /* Sólo las líneas de temporada completa (:sN) necesitan la clave en la Action;
+       los episodios concretos (:sN:eM) se resuelven sin TMDB. */
+    const needsTmdb = lines.some((l) => l.entry.season && !l.entry.episode);
+    if (needsTmdb && !String(cfg.tmdbKey || '').trim()) {
+      warn.push('Aviso: para las líneas de temporada completa (:sN) la Action necesita TMDB_API_KEY en los secrets; sin ella las ignora.');
+    }
+    $('#pickWarn').textContent = warn.join(' ');
+    $('#pickEpInfo').textContent = epInfo;
+    $('#btnAddPick').disabled = lines.length === 0;
+  }
+
+  async function confirmPicker() {
+    if (!pickerCtx) return;
+    if (pickerCtx.isNewSeries && pickerMode() !== 'episodes') {
+      setPickerMode('episodes');
+      toast('Una serie necesita temporada y episodio concretos: elige la temporada y el episodio.', 'warn', null, 6000);
+      return;
+    }
+    if (!pickerCtx.entry.imdbId) {
+      const t = toast('Resolviendo el ID de IMDb…', 'loading', null, 0);
+      const res = pickerCtx.res || {};
+      const id = await resolveImdbId({
+        imdbId: '', title: pickerCtx.entry.title || res.title, year: pickerCtx.entry.year || res.year,
+        source: res.source || pickerCtx.entry.source, tmdbId: res.tmdbId || pickerCtx.entry.tmdbId,
+        tmdbKind: res.tmdbKind || pickerCtx.entry.tmdbKind
+      });
+      if (!id) { t.update('No se pudo resolver el ID de IMDb. Escríbelo a mano (tt1234567) y vuelve a intentarlo.', 'error', 9000); return; }
+      pickerCtx.entry.imdbId = id;
+      t.close();
+    }
+    const lines = pickerLines();
+    if (!lines.length) return;
+
+    if (pickerCtx.replaceAt != null) {                 // Modo edición: sustituye la entrada
+      seq[pickerCtx.replaceAt] = { kind: 'entry', entry: lines[0].entry };
+      touch();
+      closeModal('#modalPicker');
+      toast('Entrada actualizada: ' + lines[0].line, 'success');
+      return;
+    }
+
+    let added = 0, dups = 0;
+    lines.forEach((l) => {
+      if (addEntry(l.entry, { silent: true, silentDup: true })) added += 1; else dups += 1;
+    });
+    touch();
+    closeModal('#modalPicker');
+    if (added) toast('Añadidas ' + added + ' línea(s) a la lista.\n' + lines.slice(0, 3).map((l) => l.line).join('\n') +
+      (lines.length > 3 ? '\n…' : ''), 'success', 'Listo');
+    if (dups) toast(dups + ' línea(s) ya existían en la lista y se omitieron.', 'warn');
+  }
+
+  /* --------------------------- Editar / eliminar --------------------------- */
+  function editAt(index) {
+    const it = seq[index];
+    if (!it || it.kind !== 'entry') return;
+    openPicker({ entry: Object.assign({}, it.entry), replaceAt: index, mode: it.entry.season ? (it.entry.episode ? 'episodes' : 'season') : 'series' });
+  }
+
+  function deleteAt(index) {
+    const it = seq[index];
+    if (!it) return;
+    seq.splice(index, 1);
+    touch();
+    const label = it.kind === 'entry' ? describeEntry(it.entry) : it.text;
+    toast('Eliminado: ' + (label || 'línea'), 'info', null, 2600);
+  }
+
+  /* ------------- Escribir los títulos en las líneas que solo traen ID ------------- */
+
+  /** Entradas cuyo texto humano aún no está escrito en el archivo. */
+  function pinnedEntries() {
+    return seq.filter((it) => it.kind === 'entry' && it.entry.pinned && it.entry.imdbId);
+  }
+
+  function updateWriteTitlesButton() {
+    const btn = $('#btnWriteTitles');
+    if (!btn) return;
+    const n = pinnedEntries().length;
+    btn.disabled = n === 0;
+    btn.dataset.tip = n
+      ? 'Escribe «Título (Año)» tras el ID en ' + n + ' línea(s). La GitHub Action usa ese texto para mostrarlo en la web.'
+      : 'Todas las líneas ya llevan texto';
+    btn.classList.toggle('opacity-50', n === 0);
+    const counter = $('#writeTitlesCount');
+    if (counter) counter.textContent = n ? String(n) : '';
+  }
+
+  async function writeTitles() {
+    const targets = pinnedEntries();
+    if (!targets.length) { toast('Todas las líneas ya llevan texto.', 'info'); return; }
+
+    /* 1 · Completar metadatos de lo que falte (sin tocar el archivo todavía) */
+    const t = toast('Buscando metadatos para ' + targets.length + ' línea(s)…', 'loading', null, 0);
+    for (const it of targets) {
+      try { await enrichEntry(it.entry); } catch (_) { /* se omite */ }
+      await sleep(60);
+    }
+    const ready = targets.filter((it) => it.entry.title);
+    const without = targets.filter((it) => !it.entry.title);
+    t.close();
+
+    if (!ready.length) {
+      toast('Ninguna fuente devolvió títulos para esas líneas. Añade una clave de OMDb o TMDB en Ajustes y vuelve a intentarlo.',
+        'warn', 'Sin metadatos', 9000);
+      return;
+    }
+
+    /* 2 · Propuesta de cambios */
+    const changes = ready
+      .map((it) => ({ entry: it.entry, from: lineFor(it.entry), to: lineWithTitle(it.entry) }))
+      .filter((c) => c.from !== c.to);
+
+    if (!changes.length) { toast('Las líneas ya están como estaban previstas.', 'info'); return; }
+
+    const sample = changes.slice(0, 8).map((c) =>
+      '<div><span class="text-zinc-500">' + esc(c.from) + '</span> <span class="text-emerald-400">→</span> ' +
+      '<span class="text-emerald-200">' + esc(c.to) + '</span></div>').join('');
+    const ok = await ask({
+      title: 'Escribir el título en ' + changes.length + ' línea(s)',
+      bodyHtml: '<p>La GitHub Action mostrará este texto en la web. Se conservan los IDs y el resto de líneas del archivo.</p>' +
+        '<div class="max-h-56 overflow-auto rounded-lg border border-zinc-700 bg-zinc-950/60 p-3 font-mono text-[11.5px] leading-5">' + sample +
+        (changes.length > 8 ? '<div class="text-zinc-500">… y ' + (changes.length - 8) + ' más</div>' : '') + '</div>' +
+        (without.length ? '<p class="text-amber-300/90">' + without.length + ' línea(s) se quedarán solo con el ID: no se encontraron metadatos.</p>' : ''),
+      okText: 'Escribir los títulos'
+    });
+    if (!ok) return;
+
+    changes.forEach((c) => { c.entry.pinned = false; c.entry.label = ''; });
+    touch();
+    toast('Se añadieron nombres a ' + changes.length + ' línea(s).' +
+      (without.length ? ' ' + without.length + ' se quedaron sin cambios.' : '') +
+      ' Pulsa «Guardar» para actualizar el archivo.', 'success', 'Listo', 7000);
+  }
+
+  /* ------------------------------ Añadir manual ------------------------------ */
+  async function handleManualAdd() {
+    const raw = $('#manualInput').value;
+    if (!raw.trim()) { toast('Escribe al menos un ID o una línea.', 'warn'); return; }
+    const lines = raw.replace(/\r\n?/g, '\n').split('\n');
+    const useEnrich = $('#chkEnrich').checked;
+    const invalid = [];
+    const seriesNoEpisode = [];
+    let added = 0, comments = 0, dups = 0;
+    const t = toast('Procesando ' + lines.length + ' línea(s)…', 'loading', null, 0);
+
+    for (const line of lines) {
+      const parsed = parseManualLine(line);
+      if (parsed.type === 'invalid') {
+        if (String(line).trim()) invalid.push(String(line).trim());
+        continue;
+      }
+      if (parsed.type === 'comment') { pushItem({ kind: 'comment', text: parsed.text }); comments += 1; continue; }
+
+      const entry = parsed.entry;
+      if (!entry.imdbId && entry.tmdbId) {
+        const id = await tmdbToImdbId(entry.tmdbId, entry.mediaType === 'series' ? 'tv' : 'movie');
+        if (id) entry.imdbId = id.toLowerCase();
+      }
+      if (!entry.imdbId) { invalid.push(String(line).trim()); continue; }
+      if (useEnrich && (!entry.title || !entry.poster || !entry.mediaType)) {
+        try { await enrichEntry(entry); } catch (_) { /* se añade igual sin metadatos */ }
+      }
+      delete entry.__seasons;
+      delete entry.__overview;
+      if (entry.mediaType === 'series' && !entry.season) seriesNoEpisode.push(entry.title || entry.imdbId);
+      if (addEntry(entry, { silent: true, silentDup: true })) added += 1; else dups += 1;
+      await sleep(120);   // cortesía con las APIs públicas
+    }
+
+    touch();
+    const parts = [];
+    if (added) parts.push(added + ' entrada(s) añadida(s)');
+    if (comments) parts.push(comments + ' comentario(s)');
+    if (dups) parts.push(dups + ' duplicado(s) omitido(s)');
+    if (invalid.length) parts.push(invalid.length + ' línea(s) no reconocida(s)');
+    t.update(parts.join(' · ') || 'Nada que añadir.', invalid.length ? 'warn' : 'success', invalid.length ? 8000 : 4200);
+
+    if (seriesNoEpisode.length) {
+      toast('Serie(s) sin temporada ni episodio: ' + seriesNoEpisode.slice(0, 3).join(', ') +
+        (seriesNoEpisode.length > 3 ? ' y ' + (seriesNoEpisode.length - 3) + ' más' : '') +
+        '\nPara series usa el formato tt1234567:s3:e4 (o tt1234567:s3:e4 Título S03E04).', 'warn', 'Formato de serie', 12000);
+    }
+    if (invalid.length) {
+      $('#manualInput').value = invalid.join('\n');
+      toast('No se reconocieron ' + invalid.length + ' línea(s). Se han dejado en el cuadro para que las corrijas ' +
+        '(formato: tt1234567[:s3[:e4]] Título (Año)).', 'error', 'Formato no válido', 10000);
+    } else {
+      $('#manualInput').value = '';
+    }
+  }
+
+  /* ------------------------------ Import/export ------------------------------ */
+  function downloadFile(name, text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  async function copyText(text, okMsg) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast(okMsg || 'Copiado al portapapeles.', 'success', null, 3000);
+        return true;
+      }
+      throw new Error('sin clipboard API');
+    } catch (_) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        toast(ok ? (okMsg || 'Copiado al portapapeles.') : 'El navegador bloqueó el portapapeles.', ok ? 'success' : 'warn');
+        return ok;
+      } catch (e2) {
+        toast('No fue posible copiar automáticamente. Selecciona el texto y copia a mano.', 'warn');
+        return false;
+      }
+    }
+  }
+
+  async function importFromFile(file) {
+    if (!file) return;
+    let text = '';
+    try { text = await file.text(); }
+    catch (_) { toast('No se pudo leer el archivo seleccionado.', 'error'); return; }
+
+    const incoming = parseWatchlist(text);
+    const incomingEntries = incoming.filter((it) => it.kind === 'entry').length;
+    const decision = await ask({
+      title: 'Importar ' + esc(file.name),
+      bodyHtml: '<p>El archivo contiene <strong>' + incomingEntries + ' entrada(s)</strong> y ' +
+        incoming.length + ' líneas.</p><p>¿Quieres <strong>reemplazar</strong> la lista actual o <strong>añadir</strong> su contenido al final?</p>' +
+        (isDirty() ? '<p class="text-amber-300/90">Hay cambios locales sin guardar en la lista actual.</p>' : ''),
+      okText: 'Reemplazar',
+      extraText: 'Añadir al final',
+      danger: true
+    });
+    if (!decision) return;
+
+    if (decision === 'extra') {
+      let n = 0;
+      incoming.filter((it) => it.kind !== 'blank').forEach((it) => {
+        if (it.kind === 'entry') { if (addEntry(it.entry, { silent: true, silentDup: true })) n += 1; }
+        else { seq.push(it); n += 1; }
+      });
+      touch();
+      toast('Importadas ' + n + ' línea(s) al final de la lista.', 'success');
+    } else {
+      seq = incoming.length ? incoming : [];
+      loaded = true;
+      touch();
+      toast('Lista reemplazada con ' + incomingEntries + ' entrada(s) de ' + file.name + '.', 'success');
+    }
+    toast('Las entradas que sólo traían un ID se completarán con las fuentes activas (OMDb, imdbapi.dev, Cinemeta…).', 'info', null, 5000);
+  }
+
+  /* -------------------------------- GitHub -------------------------------- */
+  function openSettings() { fillSettingsForm(); openModal('#modalSettings'); }
+
+  function guardGh() {
+    if (!ghConfigured()) {
+      toast('Configura Owner y Repo (y el token para guardar) en Ajustes.', 'warn', 'Falta configuración', 6000);
+      openSettings();
+      return false;
+    }
+    return true;
+  }
+
+  async function doPull(opts) {
+    const options = opts || {};
+    if (!guardGh()) return false;
+    if (isDirty() && !options.force) {
+      const ok = await ask({
+        title: 'Cambios locales sin guardar',
+        bodyHtml: '<p>Tienes cambios locales que no están en GitHub. Si recargas el archivo remoto se perderán.</p>' +
+          '<p class="text-zinc-500">Consejo: guarda primero o descarga una copia con «Descargar».</p>',
+        okText: 'Descartar y recargar',
+        danger: true
+      });
+      if (!ok) return false;
+    }
+
+    setBusy($('#btnPull'), true); setBusy($('#btnPull2'), true);
+    const t = options.silent ? toast('Cargando ' + (cfg.path || 'watchlist.txt') + '…', 'loading', null, 0) : null;
+    try {
+      const snap = await ghGetFile();
+      cfg.finalNewline = /\n$/.test(snap.text);
+      seq = parseWatchlist(snap.text);
+      loaded = true;
+      remoteSha = snap.sha || null;
+      remoteText = serializeWatchlist(seq, { finalNewline: cfg.finalNewline });
+      remoteMeta = { path: snap.path, htmlUrl: snap.htmlUrl, fetchedAt: Date.now(), updatedBy: '' };
+      saveConfig();
+      renderAll(); persistState();
+
+      /* Autor del último commit (best-effort) */
+      ghLastCommit().then((info) => {
+        if (info && remoteMeta) { remoteMeta.updatedBy = info.author; remoteMeta.lastCommit = info; renderPreview(); }
+      }).catch(function () {});
+
+      const stats = statsOf(seq);
+      const msg = stats.entries + ' entrada(s) · ' + stats.lines + ' líneas · sha ' + (remoteSha ? String(remoteSha).slice(0, 7) : '—');
+      if (t) t.update(msg, 'success', 5000); else toast(msg, 'success', 'watchlist.txt cargado', 5000);
+      if (stats.invalid) toast(stats.invalid + ' línea(s) no siguen el formato watchlist y se marcarán en rojo (se conservan tal cual).', 'warn', null, 7000);
+      enrichMissing();
+      return true;
+    } catch (err) {
+      const msg = (err && err.message) || 'Error desconocido al leer el archivo.';
+      if (t) t.update(msg, 'error', 10000); else toast(msg, 'error', 'No se pudo cargar', 10000);
+      if (err && err.status === 404 && !remoteSha) {
+        toast('Si el archivo todavía no existe en el repositorio, puedes crear la lista desde cero y pulsar «Guardar»: se creará automáticamente.', 'info', 'Archivo nuevo', 10000);
+      }
+      return false;
+    } finally {
+      setBusy($('#btnPull'), false); setBusy($('#btnPull2'), false);
+    }
+  }
+
+  async function ghLastCommit() {
+    if (!ghConfigured()) return null;
+    const url = 'https://api.github.com/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) +
+      '/commits?path=' + encodeURIComponent(cfg.path) + '&sha=' + encodeURIComponent(cfg.branch || 'main') + '&per_page=1';
+    const data = await httpJson(url, { headers: ghHeaders(), timeout: 12000 });
+    if (!Array.isArray(data) || !data.length) return null;
+    const c = data[0];
+    return {
+      sha: c.sha,
+      shortSha: String(c.sha || '').slice(0, 7),
+      author: (c.author && c.author.login) || (c.commit && c.commit.author && c.commit.author.name) || 'desconocido',
+      date: (c.commit && c.commit.author && c.commit.author.date) || null,
+      message: (c.commit && c.commit.message || '').split('\n')[0],
+      htmlUrl: c.html_url
+    };
+  }
+
+  /** Completa títulos/pósters de entradas que solo traen ID (si hay OMDb). */
+  async function enrichMissing() {
+    const targets = seq.filter((it) => it.kind === 'entry' && it.entry.imdbId &&
+      (!it.entry.title || !it.entry.mediaType || !it.entry.poster)).slice(0, 30);
+    if (!targets.length) return;
+    const t = toast('Completando metadatos de ' + targets.length + ' entrada(s)…', 'loading', null, 0);
+    let ok = 0, missing = 0;
+    for (const it of targets) {
+      const info = await detailByImdbId(it.entry.imdbId, { mediaType: it.entry.mediaType });
+      if (info && (info.title || info.poster)) {
+        if (!it.entry.title && info.title) it.entry.title = info.title;
+        if (!it.entry.year && info.year) it.entry.year = info.year;
+        if (!it.entry.poster && info.poster) it.entry.poster = info.poster;
+        if (!it.entry.mediaType && info.mediaType) it.entry.mediaType = info.mediaType;
+        if (info.seasons && !it.entry.__seasons) it.entry.__seasons = info.seasons.count || info.seasons;
+        ok += 1;
+      } else {
+        missing += 1;
+      }
+      await sleep(70);
+    }
+    touch();
+    t.update(ok ? 'Metadatos completados para ' + ok + '/' + targets.length + ' entrada(s).'
+                : 'Ninguna fuente activa devolvió metadatos para esas entradas.',
+      ok ? 'success' : 'warn');
+    if (missing && !ok) toast('Añade una clave de OMDb o TMDB en Ajustes para ampliar la cobertura de metadatos.', 'info', null, 7000);
+  }
+
+  async function doPush(opts) {
+    const options = opts || {};
+    if (!guardGh()) return false;
+    if (!token) {
+      toast('Añade un Personal Access Token en Ajustes para poder guardar en GitHub.', 'warn', 'Token necesario', 7000);
+      openSettings();
+      return false;
+    }
+
+    const text = serializeWatchlist(seq, { finalNewline: cfg.finalNewline });
+    const stats = statsOf(seq);
+    const d = diffLines(remoteText, text);
+    const hasChanges = text !== remoteText;
+
+    if (!hasChanges && !options.force) {
+      const again = await ask({
+        title: 'Sin cambios que guardar',
+        bodyHtml: '<p>El contenido local es idéntico al de <code>' + esc(cfg.path) + '</code> en la rama <code>' + esc(cfg.branch) + '</code>.</p>' +
+          '<p>¿Quieres reenviar el archivo de todos modos (genera un commit vacío de contenido y vuelve a lanzar la Action)?</p>',
+        okText: 'Reenviar igualmente'
+      });
+      if (!again) return false;
+    }
+
+    if (stats.invalid) {
+      const keep = await ask({
+        title: 'Hay líneas con formato desconocido',
+        bodyHtml: '<p><strong>' + stats.invalid + '</strong> línea(s) no siguen el formato watchlist. Se guardarán tal cual y podrían romper el procesado del workflow.</p>' +
+          '<p class="text-zinc-500">Puedes revisarlas en rojo en la lista antes de subir.</p>',
+        okText: 'Guardar así'
+      });
+      if (!keep) return false;
+    }
+
+    if (d.removed.length) {
+      let decision;
+      do {
+        decision = await ask({
+          title: 'Se eliminarán ' + d.removed.length + ' línea(s)',
+          bodyHtml: '<p>Estas líneas existen en GitHub y <strong>desaparecerán</strong> del archivo:</p>' +
+            '<pre class="max-h-40 overflow-auto rounded-lg border border-red-400/25 bg-red-400/5 p-2 font-mono text-[11px] text-red-200">' +
+            esc(d.removed.slice(0, 20).join('\n')) + (d.removed.length > 20 ? '\n… y ' + (d.removed.length - 20) + ' más' : '') + '</pre>' +
+            '<p class="text-zinc-500">Se añadirán ' + d.added.length + ' línea(s) nuevas.</p>',
+          okText: 'Sí, actualizar watchlist.txt',
+          extraText: 'Descargar copia de seguridad',
+          danger: true
+        });
+        if (decision === 'extra') downloadFile('watchlist.backup.txt', remoteText);
+      } while (decision === 'extra');
+      if (!decision) return false;
+    } else if (hasChanges) {
+      const ok = await ask({
+        title: 'Guardar en GitHub',
+        bodyHtml: '<p>Se actualizará <code>' + esc(cfg.owner + '/' + cfg.repo) + '</code> · rama <code>' + esc(cfg.branch) + '</code> · <code>' + esc(cfg.path) + '</code>.</p>' +
+          '<p><span class="badge badge-emerald">+' + d.added.length + '</span> ' +
+          '<span class="badge badge-red">−' + d.removed.length + '</span> · ' + stats.entries + ' entradas · ' + new Blob([text]).size.toLocaleString('es-ES') + ' bytes</p>' +
+          '<p class="text-zinc-500">Al guardar se disparará la GitHub Action que genera los sitios y feeds estáticos.</p>',
+        okText: 'Sí, guardar y lanzar la Action'
+      });
+      if (!ok) return false;
+    }
+
+    setBusy($('#btnPush'), true); setBusy($('#btnPush2'), true);
+    const t = toast('Enviando ' + (cfg.path || 'watchlist.txt') + ' a GitHub…', 'loading', null, 0);
+    try {
+      const message = $('#commitMsg').value.trim() || cfg.commitMsg || 'chore(watchlist): actualizar lista de descargas';
+      const data = await ghPutFile(text, remoteSha, message);
+      remoteSha = (data && data.content && data.content.sha) || remoteSha;
+      remoteText = text;
+      remoteMeta = { path: cfg.path, htmlUrl: (data && data.content && data.content.html_url) || (remoteMeta && remoteMeta.htmlUrl), fetchedAt: Date.now(), updatedBy: 'tú' };
+      cfg.commitMsg = $('#commitMsg').value.trim();
+      saveConfig();
+      clearDraft();
+      renderAll(); persistState();
+
+      const commitUrl = data && data.commit && data.commit.html_url;
+      const commitMsgTxt = (data && data.commit && data.commit.message) || message;
+      const toastHandle = toast(
+        'Commit «' + commitMsgTxt + '» · ' + stats.entries + ' entradas · Action en marcha.' +
+        (commitUrl ? ' ' + commitUrl : ''),
+        'success', 'Guardado en GitHub', 9000);
+      if (commitUrl) {
+        const link = document.createElement('a');
+        link.href = commitUrl; link.target = '_blank'; link.rel = 'noopener';
+        link.className = 'btn btn-xs mt-2'; link.textContent = 'Ver el commit ↗';
+        toastHandle.el.querySelector('div').appendChild(link);
+      }
+      t.close();
+      return true;
+    } catch (err) {
+      const msg = (err && err.message) || 'Error desconocido al guardar.';
+      t.update(msg, 'error', 12000);
+      if (err && err.status === 409) {
+        toast('Hay una versión más nueva en GitHub. Pulsa «Recargar» para traerla; tus cambios locales se pueden descartar o reaplicar.', 'warn', 'Conflicto', 10000);
+      }
+      return false;
+    } finally {
+      setBusy($('#btnPush'), false); setBusy($('#btnPush2'), false);
+    }
+  }
+
+  /* --------------------------- Probar conexión --------------------------- */
+  async function testConnection() {
+    readSettingsForm();
+    saveConfig();
+    const btn = $('#btnTestConn');
+    setBusy(btn, true);
+    showCfgResult(true, 'Comprobando repositorio, token y fuentes de metadatos…');
+    const linesOut = [];
+
+    try {
+      const snap = await ghGetFile();
+      const stats = statsOf(parseWatchlist(snap.text));
+      linesOut.push('<p>✅ <strong>Repositorio accesible</strong>: ' + esc(cfg.owner + '/' + cfg.repo) + ' · ' +
+        esc(cfg.branch) + ' · <code>' + esc(snap.path) + '</code> (' + snap.size.toLocaleString('es-ES') + ' bytes, ' +
+        stats.entries + ' entradas).</p>');
+    } catch (err) {
+      linesOut.push('<p>❌ <strong>Repositorio</strong>: ' + esc((err && err.message) || 'error') + '</p>');
+    }
+
+    if (token) {
+      try {
+        const user = await httpJson('https://api.github.com/user', { headers: ghHeaders(), timeout: 12000 });
+        linesOut.push('<p>✅ <strong>Token válido</strong> como <code>' + esc(user.login) + '</code>' +
+          (user.name ? ' (' + esc(user.name) + ')' : '') + '.</p>');
+      } catch (err) {
+        linesOut.push('<p>❌ <strong>Token</strong>: ' + esc((err && err.message) || 'error') + '</p>');
+      }
+    } else {
+      linesOut.push('<p>ℹ️ <strong>Sin token</strong>: solo lectura (límite de 60 peticiones/hora).</p>');
+    }
+
+    const rl = await ghRateLimit();
+    if (rl && rl.resources) {
+      const core = rl.resources.core || {};
+      linesOut.push('<p>ℹ️ <strong>Cuota GitHub</strong>: ' + (core.remaining != null ? core.remaining : '?') + '/' + (core.limit || '?') +
+        ' peticiones restantes' + (core.reset ? ' (se renueva a las ' + new Date(core.reset * 1000).toLocaleTimeString('es-ES') + ')' : '') + '.</p>');
+    }
+
+    const toTest = Object.keys(SOURCES);
+    linesOut.push('<p class="mt-1"><strong>Fuentes de metadatos</strong> (' + usableSources().length + ' activas de ' + toTest.length + ')</p>');
+    for (const id of toTest) {
+      if (!sourceUsable(id)) {
+        linesOut.push('<p>➖ <strong>' + esc(SOURCES[id].label) + '</strong>: sin clave (no se prueba).</p>');
+        continue;
+      }
+      setProvider(id, 'busy', 'Comprobando…');
+      const r = await testProvider(id);
+      setProvider(id, r.ok ? 'ok' : 'error', r.message);
+      linesOut.push('<p>' + (r.ok ? '✅' : '❌') + ' <strong>' + esc(SOURCES[id].label) + '</strong>: ' + esc(r.message) + '</p>');
+    }
+
+    const anyBad = linesOut.join('').indexOf('❌') !== -1;
+    showCfgResult(!anyBad, linesOut.join('') + '<p class="text-[11px] opacity-80">Nota: las claves de TMDB/OMDb viajan directamente desde tu navegador a sus APIs; no pasan por ningún servidor intermedio.</p>');
+    setBusy(btn, false);
+  }
+
+  /* ===========================================================================
+   * 8 · EVENTOS E INICIALIZACIÓN
+   * ======================================================================== */
+  function bindEvents() {
+    /* --- Selector de fuente --- */
+    $('#sourceSelect').addEventListener('change', (ev) => {
+      const value = ev.target.value;
+      if (value !== 'all' && !SOURCES[value]) { renderSourcePicker(); return; }   // valor no válido
+      searchSource = value;
+      cfg.searchSource = searchSource;
+      saveConfig();
+      searchTicket += 1;            // invalida las búsquedas en curso
+      results = [];
+      renderResults();
+      const chips = $('#sourceChips');
+      if (chips) chips.innerHTML = '';
+      const usable = usableSources();
+      $('#searchHint').textContent = searchSource === 'all'
+        ? 'Se buscará en ' + usable.length + ' fuentes activas: ' + usable.map((id) => SOURCES[id].label).join(', ') + '.'
+        : SOURCES[searchSource].label + ': ' + SOURCES[searchSource].note + '.';
+      if (searchSource !== 'all' && !sourceUsable(searchSource)) {
+        toast(keyHint(searchSource), 'info', sourceLabel(searchSource));
+      }
+      $('#searchInput').focus();
+    });
+
+    /* --- Filtro por tipo --- */
+    $('#typeFilter').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button[data-type]');
+      if (!btn) return;
+      searchTypeFilter = btn.dataset.type;
+      $$('#typeFilter button').forEach((b) => b.classList.toggle('active', b === btn));
+      renderResults();
+    });
+
+    /* --- Buscador --- */
+    $('#searchForm').addEventListener('submit', (ev) => { ev.preventDefault(); doSearch(); });
+    $('#searchInput').addEventListener('input', (ev) => {
+      $('#btnClearSearch').classList.toggle('hidden', !ev.target.value);
+    });
+    $('#btnClearSearch').addEventListener('click', () => {
+      $('#searchInput').value = '';
+      results = [];
+      $('#btnClearSearch').classList.add('hidden');
+      renderResults();
+      $('#searchInput').focus();
+    });
+
+    /* --- Resultados (delegación) --- */
+    $('#results').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button[data-add]');
+      if (!btn) return;
+      const res = lastVisible[toIdx(btn.dataset.add)];
+      if (!res) return;
+      addFromResult(res);
+    });
+
+    /* --- Añadir manual --- */
+    $('#btnManualAdd').addEventListener('click', handleManualAdd);
+    $('#manualInput').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); handleManualAdd(); }
+    });
+
+    /* --- Lista (delegación) --- */
+    $('#list').addEventListener('click', (ev) => {
+      const del = ev.target.closest('button[data-del]');
+      if (del) { deleteAt(toIdx(del.dataset.del)); return; }
+      const ed = ev.target.closest('button[data-edit]');
+      if (ed) { editAt(toIdx(ed.dataset.edit)); return; }
+    });
+
+    /* --- Fuentes de datos: probar y activar/desactivar --- */
+    $('#providersList').addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-test-provider]');
+      if (!btn) return;
+      const id = btn.dataset.testProvider;
+      setProvider(id, 'busy', 'Comprobando…');
+      const r = await testProvider(id);
+      setProvider(id, r.ok ? 'ok' : 'error', r.message);
+      toast(r.message, r.ok ? 'success' : 'error', SOURCES[id].label, r.ok ? 4000 : 9000);
+    });
+    $('#providersList').addEventListener('change', (ev) => {
+      const chk = ev.target.closest('input[data-toggle-source]');
+      if (!chk) return;
+      const id = chk.dataset.toggleSource;
+      const all = Object.keys(SOURCES);
+      const set = new Set(Array.isArray(cfg.enabledSources) && cfg.enabledSources.length ? cfg.enabledSources : all);
+      if (chk.checked) set.add(id); else set.delete(id);
+      cfg.enabledSources = all.filter((k) => set.has(k));
+      saveConfig();
+      renderProviders();
+      renderSourcePicker();
+      toast((chk.checked ? 'Fuente activada para la búsqueda: ' : 'Fuente desactivada: ') + SOURCES[id].label,
+        'info', null, 2800);
+    });
+    $('#btnOpenSettings2').addEventListener('click', openSettings);
+
+    /* --- Cabecera --- */
+    $('#btnSettings').addEventListener('click', openSettings);
+    $('#btnPull').addEventListener('click', () => doPull());
+    $('#btnPush').addEventListener('click', () => doPush());
+    $('#btnPull2').addEventListener('click', () => doPull());
+    $('#btnPush2').addEventListener('click', () => doPush());
+
+    /* --- Ajustes --- */
+    $('#btnCloseCfg').addEventListener('click', () => closeModal('#modalSettings'));
+    $('#btnCancelCfg').addEventListener('click', () => closeModal('#modalSettings'));
+    $('#btnSaveCfg').addEventListener('click', () => {
+      readSettingsForm();
+      saveConfig();
+      renderAll();
+      closeModal('#modalSettings');
+      renderSourcePicker();
+      renderProviders();
+      toast('Ajustes guardados' + (ghConfigured() ? ' para ' + cfg.owner + '/' + cfg.repo : '') + '.',
+        'success', null, 3200);
+      if (ghConfigured() && !loaded && cfg.autoLoad) doPull({ silent: true });
+      else if (ghConfigured() && !remoteMeta) toast('Pulsa «Recargar» para leer el ' + (cfg.path || 'watchlist.txt') + ' del repositorio.', 'info', null, 5000);
+    });
+    $('#btnTestConn').addEventListener('click', testConnection);
+    $('#btnForgetToken').addEventListener('click', () => {
+      forgetToken();
+      $('#cfgToken').value = '';
+      toast('Token eliminado de este navegador.', 'info');
+    });
+    $('#btnToggleToken').addEventListener('click', () => {
+      const inp = $('#cfgToken');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      inp.focus();
+    });
+    $('#btnResetCfg').addEventListener('click', () => {
+      const keepToken = token;
+      cfg = Object.assign({}, DEFAULT_CFG);
+      token = keepToken;
+      fillSettingsForm();
+      toast('Formulario restaurado a los valores por defecto (pulsa «Guardar ajustes»).', 'info', null, 5000);
+    });
+
+    /* --- Picker temporada/episodio --- */
+    $('#pickMode').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button[data-mode]');
+      if (!btn || btn.disabled) return;
+      setPickerMode(btn.dataset.mode);
+    });
+    ['#pickSeasonSelect', '#pickSeasonNum', '#pickEpFrom', '#pickEpTo'].forEach((sel) => {
+      $(sel).addEventListener('input', updatePickerPreview);
+      $(sel).addEventListener('change', updatePickerPreview);
+    });
+    $('#btnClosePick').addEventListener('click', () => closeModal('#modalPicker'));
+    $('#btnCancelPick').addEventListener('click', () => closeModal('#modalPicker'));
+    $('#btnAddPick').addEventListener('click', confirmPicker);
+
+    /* --- Confirmación --- */
+    $('#askOk').addEventListener('click', () => resolveAsk(true));
+    $('#askCancel').addEventListener('click', () => resolveAsk(false));
+    $('#askExtra').addEventListener('click', () => resolveAsk('extra'));
+
+    /* --- Lista: importar / exportar / vaciar --- */
+    $('#btnWriteTitles').addEventListener('click', () => writeTitles());
+    $('#btnImport').addEventListener('click', () => $('#fileInput').click());
+    $('#fileInput').addEventListener('change', (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      importFromFile(file);
+      ev.target.value = '';
+    });
+    $('#btnDownload').addEventListener('click', () => {
+      downloadFile(cfg.path || 'watchlist.txt', serializeWatchlist(seq, { finalNewline: cfg.finalNewline }));
+      toast('Archivo descargado.', 'success', null, 2600);
+    });
+    $('#btnCopy').addEventListener('click', () => {
+      copyText(serializeWatchlist(seq, { finalNewline: cfg.finalNewline }), 'Contenido copiado al portapapeles.');
+    });
+    $('#btnCopyPreview').addEventListener('click', () => {
+      copyText(serializeWatchlist(seq, { finalNewline: cfg.finalNewline }), 'watchlist.txt copiado al portapapeles.');
+    });
+    $('#btnClear').addEventListener('click', async () => {
+      if (!seq.length) { toast('La lista ya está vacía.', 'info'); return; }
+      const decision = await ask({
+        title: 'Vaciar la lista',
+        bodyHtml: '<p>Se quitarán las ' + statsOf(seq).entries + ' entradas y los comentarios de la lista local.</p>' +
+          '<p class="text-zinc-500">Los cambios no llegan a GitHub hasta que pulses «Guardar».</p>',
+        okText: 'Vaciar',
+        extraText: 'Descargar copia antes',
+        danger: true
+      });
+      if (!decision) return;
+      if (decision === 'extra') {
+        downloadFile('watchlist.backup.txt', serializeWatchlist(seq, { finalNewline: cfg.finalNewline }));
+        toast('Copia descargada. Vuelve a pulsar «Vaciar» para confirmar.', 'info', null, 6000);
+        return;
+      }
+      seq = [];
+      loaded = true;
+      touch();
+      toast('Lista vaciada. Pulsa «Guardar» para dejar el archivo sin entradas.', 'warn');
+    });
+    $('#btnReset').addEventListener('click', async () => {
+      const ok = await ask({
+        title: 'Descartar cambios locales',
+        bodyHtml: '<p>Se restaurará el contenido que se cargó por última vez desde GitHub' +
+          (remoteMeta && remoteMeta.fetchedAt ? ' (' + new Date(remoteMeta.fetchedAt).toLocaleString('es-ES') + ')' : '') + '.</p>' +
+          '<p class="text-zinc-500">Tus cambios locales se perderán.</p>',
+        okText: 'Descartar cambios',
+        danger: true
+      });
+      if (!ok) return;
+      if (!remoteMeta || !remoteMeta.fetchedAt) {
+        seq = []; loaded = false; clearDraft(); touch();
+        toast('Lista vaciada (no había contenido remoto cargado).', 'info');
+        return;
+      }
+      seq = parseWatchlist(remoteText);
+      loaded = true;
+      touch();
+      toast('Cambios locales descartados.', 'success');
+    });
+
+    /* --- Modales: fondo y teclado --- */
+    modals.forEach((sel) => {
+      $(sel).addEventListener('mousedown', (ev) => {
+        if (ev.target === $(sel)) {
+          if (sel === '#modalAsk') resolveAsk(false); else closeModal(sel);
+        }
+      });
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      const inField = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '');
+      if (ev.key === 'Escape') {
+        if (modalStack.length) { ev.preventDefault(); closeTopModal(); }
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
+        ev.preventDefault();
+        doPush();
+        return;
+      }
+      if (!inField && ev.key === '/') {
+        ev.preventDefault();
+        $('#searchInput').focus();
+      }
+      if (inField && ev.key === 'Enter' && ev.target.id === 'cfgPath') {
+        ev.preventDefault();
+        $('#btnSaveCfg').click();
+      }
+    });
+
+    window.addEventListener('beforeunload', (ev) => {
+      if (!isDirty()) return undefined;
+      ev.preventDefault();
+      ev.returnValue = 'Hay cambios sin guardar en watchlist.txt.';
+      return ev.returnValue;
+    });
+
+    /* --- Estado de conexión --- */
+    window.addEventListener('online', () => toast('Conexión restablecida.', 'success', null, 2600));
+    window.addEventListener('offline', () => toast('Sin conexión: las búsquedas y el guardado fallarán hasta que vuelvas a estar online.', 'warn', null, 7000));
+  }
+
+  /* ------------------------------- Arranque ------------------------------- */
+  function init() {
+    /* Estado inicial de las fuentes: no se llama a ninguna API hasta que lo pida el usuario */
+    initProviderState();
+    Object.keys(SOURCES).forEach((id) => {
+      const p = providerState[id];
+      if (!p) return;
+      p.detail = sourceUsable(id)
+        ? (SOURCES[id].group === 'key' ? 'Clave configurada · pulsa Probar' : SOURCES[id].note + ' · pulsa Probar')
+        : 'Sin configurar en Ajustes';
+    });
+
+    $('#commitMsg').value = cfg.commitMsg || '';
+    $('#commitMsg').placeholder = 'chore(watchlist): actualizar lista de descargas';
+
+    const hadDraft = restoreState();
+    renderSourcePicker();
+    renderResults();
+    renderAll();
+
+    if (hadDraft) {
+      const stats = statsOf(seq);
+      toast('Borrador recuperado: ' + stats.entries + ' entradas' +
+        (remoteSha ? '' : ' (sin sincronizar con GitHub)') + '.', 'info', 'Sesión anterior', 6000);
+    }
+
+    if (ghConfigured()) {
+      $('#searchHint').textContent = searchSource === 'all'
+        ? 'Se buscará en ' + usableSources().length + ' fuentes públicas a la vez. Escribe un título y pulsa Enter.'
+        : 'Fuente activa: ' + sourceLabel(searchSource) + '. Escribe un título y pulsa Enter.';
+      if (cfg.autoLoad && !hadDraft) doPull({ silent: true });
+      else if (hadDraft && cfg.autoLoad) toast('Pulsa «Recargar» para leer de nuevo el watchlist.txt de GitHub.', 'info', null, 6000);
+    } else {
+      $('#searchHint').textContent = 'Sin repositorio configurado: puedes buscar y preparar la lista igualmente. ' +
+        'Se buscará en ' + usableSources().length + ' fuentes públicas.';
+      if (!hadDraft) {
+        openSettings();   /* rellena el formulario con los valores por defecto reales */
+        toast('Bienvenido: rellena Owner, Repo y tu PAT para leer y guardar watchlist.txt en GitHub.', 'info', 'Primera configuración', 9000);
+      }
+    }
+
+    if (cfg.commitMsg) $('#commitMsg').value = cfg.commitMsg;
+    if (!navigator.onLine) toast('Parece que no hay conexión a internet.', 'warn');
+    console.info('%cPeerflix Static · Watchlist Manager v' + APP_VERSION, 'color:#34d399;font-weight:bold',
+      '\nAtajos: Ctrl/⌘+S guardar · / buscar · Esc cerrar modales\nCORE disponible en window.PFX_CORE para depuración.');
+  }
+
+  /* Hook de diagnóstico (nunca expone el token): window.PFX_STATE() */
+  if (typeof window !== 'undefined') {
+    window.PFX_STATE = function () {
+      return {
+        version: APP_VERSION,
+        cfg: Object.assign({}, cfg, { token: token ? '***' : '' }),
+        loaded: loaded,
+        dirty: isDirty(),
+        remoteSha: remoteSha,
+        remoteMeta: remoteMeta,
+        searchSource: searchSource,
+        providers: JSON.parse(JSON.stringify(providerState)),
+        seq: seq
+      };
+    };
+  }
+
+  if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { bindEvents(); init(); });
+    else { bindEvents(); init(); }
+  }
+})();
+</script>
+</body>
+</html>
