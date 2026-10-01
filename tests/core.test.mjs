@@ -20,7 +20,7 @@ const fn = new Function('window', 'console', 'localStorage', 'sessionStorage', '
 const CORE = fn(sandbox.window, console, undefined, undefined, undefined);
 assert.ok(CORE, 'PFX_CORE no está expuesto');
 const {
-  parseWatchlist, serializeWatchlist, lineFor, makeEntry, splitTitleYear,
+  parseWatchlist, serializeWatchlist, lineFor, lineWithTitle, idPartOf, makeEntry, splitTitleYear,
   parseManualLine, diffLines, statsOf, b64EncodeUtf8, b64DecodeUtf8, imdbQidToType,
   normTitle, relevanceOf, mergeResults, rankResults
 } = CORE;
@@ -289,6 +289,99 @@ t('la fusión no muta los objetos originales de entrada', () => {
   mergeResults([a, b]);
   assert.deepEqual(a.sources, []);
   assert.deepEqual(b.sources, []);
+});
+
+/* ------------------------------------------------------------------ */
+section('8. Archivo real de Peerflix Static (solo IDs + cabecera de comentarios)');
+
+const REAL_WL = [
+  '# Peerflix Static \u2013 Watchlist',
+  '',
+  '# -----------------------------------------------------------',
+  '# Una l\u00ednea por t\u00edtulo. La Action consultar\u00e1 peerflix.mov por cada una',
+  '# y publicar\u00e1 los streams en public/data/.',
+  '#',
+  '# Formatos soportados:',
+  '#   tt1234567          -> pel\u00edcula (IMDb)',
+  '#   tt1234567:s3:e4    -> episodio concreto (serie, temporada 3, ep. 4)',
+  '#   tt1234567:s3       -> todos los episodios conocidos de la temporada 3',
+  '#                         (necesita TMDB_API_KEY para expandir; si no hay clave,',
+  '#                          se ignora la l\u00ednea con aviso)',
+  '#',
+  '# L\u00edneas que empiezan por \'#\' son comentarios. Se ignoran l\u00edneas vac\u00edas.',
+  '# Puedes a\u00f1adir un nombre humano tras un espacio para que la web lo muestre:',
+  '#   tt0111161 Cadena perpetua (1994)',
+  '#   tt1375666 Inception (2010)',
+  '#   tt0944947:s1:e1 Game of Thrones S01E01',
+  '#',
+  '# Si defines TMDB_API_KEY en secrets (opcional), el script puede expandir',
+  '# temporadas autom\u00e1ticamente y enriquecer metadatos (t\u00edtulo, a\u00f1o, p\u00f3ster).',
+  '# Si no, usa el nombre que pongas en esta misma l\u00ednea.',
+  '# -----------------------------------------------------------',
+  'tt6933238',
+  'tt22526100',
+  'tt26657236',
+  'tt29355505',
+  'tt11561116',
+  ''
+].join('\n');
+
+const realSeq = parseWatchlist(REAL_WL);
+
+t('round-trip byte a byte del archivo real', () => {
+  assert.equal(serializeWatchlist(realSeq, { finalNewline: true }), REAL_WL);
+});
+t('clasifica comentarios, línea en blanco y 5 entradas', () => {
+  const st = statsOf(realSeq);
+  assert.equal(st.comments, 22);
+  assert.equal(st.blanks, 1);
+  assert.equal(st.entries, 5);
+  assert.equal(st.unknown, 5);
+  assert.equal(st.lines, 28);
+});
+t('acepta IDs de 7 y 8 dígitos (tt6933238, tt22526100…)', () => {
+  const ids = realSeq.filter((it) => it.kind === 'entry').map((it) => it.entry.imdbId);
+  assert.deepEqual(ids, ['tt6933238', 'tt22526100', 'tt26657236', 'tt29355505', 'tt11561116']);
+});
+t('las líneas sin texto quedan marcadas como «solo ID» (no se reescriben solas)', () => {
+  const e = realSeq[23].entry;
+  assert.equal(e.pinned, true);
+  assert.equal(e.label, '');
+  assert.equal(lineFor(e), 'tt6933238');
+  /* aunque la interfaz complete metadatos, la línea del archivo no cambia */
+  e.title = 'La Última Frontera';
+  e.year = '2026';
+  e.mediaType = 'movie';
+  assert.equal(lineFor(e), 'tt6933238');
+});
+t('«escribir título» genera la línea con nombre y año', () => {
+  const e = realSeq[23].entry;
+  assert.equal(lineWithTitle(e), 'tt6933238 La Última Frontera (2026)');
+});
+t('«escribir título» respeta el formato de temporada y episodio', () => {
+  const season = makeEntry({ imdbId: 'tt0944947', title: 'Game of Thrones', season: 3, episode: null, mediaType: 'series' });
+  const episode = makeEntry({ imdbId: 'tt0944947', title: 'Game of Thrones', season: 3, episode: 4, mediaType: 'series' });
+  const plain = makeEntry({ imdbId: 'tt0944947', title: 'Game of Thrones', year: '2011', mediaType: 'series' });
+  assert.equal(lineWithTitle(season), 'tt0944947:s3 Game of Thrones Temporada 3');
+  assert.equal(lineWithTitle(episode), 'tt0944947:s3:e4 Game of Thrones S03E04');
+  assert.equal(lineWithTitle(plain), 'tt0944947 Game of Thrones (2011)');
+  assert.equal(idPartOf(episode), 'tt0944947:s3:e4');
+});
+t('sin metadatos, «escribir título» deja la línea como estaba', () => {
+  const e = makeEntry({ imdbId: 'tt9999999', season: 3 });
+  assert.equal(lineWithTitle(e), 'tt9999999:s3');
+});
+t('la cabecera sobrevive a añadir entradas nuevas', () => {
+  const copy = realSeq.slice();
+  copy.push({ kind: 'entry', entry: makeEntry({ imdbId: 'tt0111161', title: 'Cadena perpetua', year: '1994' }) });
+  const out = serializeWatchlist(copy, { finalNewline: true });
+  assert.ok(out.indexOf('# -----------------------------------------------------------') !== -1);
+  assert.ok(out.indexOf('#   tt1234567          -> pel\u00edcula (IMDb)') !== -1);
+  assert.ok(out.endsWith('tt0111161 Cadena perpetua (1994)\n'));
+});
+t('los comentarios con formato de entrada no se confunden con entradas', () => {
+  assert.equal(realSeq[7].kind, 'comment');   // «#   tt1234567          -> película (IMDb)»
+  assert.equal(realSeq[15].kind, 'comment');  // «#   tt0111161 Cadena perpetua (1994)»
 });
 
 /* ------------------------------------------------------------------ */

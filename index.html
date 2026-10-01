@@ -243,7 +243,11 @@
         <svg viewBox="0 0 24 24" class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         <h2 class="text-sm font-semibold">Mi watchlist</h2>
         <span id="wlCount" class="badge badge-zinc">0 entradas</span>
+        <span class="badge badge-zinc" data-tip="Líneas que solo llevan el ID: la web usará el título que escribas">solo ID: la Action lo agradece</span>
         <div class="ml-auto flex items-center gap-1.5">
+          <button id="btnWriteTitles" class="btn btn-ghost btn-xs" data-tip="Escribir los títulos en las líneas que solo llevan el ID">
+            Escribir títulos<span id="writeTitlesCount" class="ml-1 rounded bg-emerald-400/15 px-1 text-[10px] text-emerald-300"></span>
+          </button>
           <button id="btnImport" class="btn btn-ghost btn-xs" data-tip="Importar un .txt local">Importar</button>
           <button id="btnDownload" class="btn btn-ghost btn-xs" data-tip="Descargar watchlist.txt">Descargar</button>
           <button id="btnCopy" class="btn btn-ghost btn-xs" data-tip="Copiar contenido">Copiar</button>
@@ -699,15 +703,29 @@
     return title + (e.year ? ' (' + e.year + ')' : '');
   }
 
-  /** Línea final del archivo para una entrada. */
-  function lineFor(e) {
+  /** Parte izquierda de la línea: `tt1234567`, `tt1234567:s3` o `tt1234567:s3:e4`. */
+  function idPartOf(e) {
     let id = e.imdbId;
     if (e.season && e.episode) id += ':s' + e.season + ':e' + e.episode;
     else if (e.season) id += ':s' + e.season;
+    return id;
+  }
+
+  /** Línea final del archivo para una entrada. */
+  function lineFor(e) {
+    const id = idPartOf(e);
     /* Las líneas cargadas que sólo traían el ID se mantienen intactas:
-       los metadatos que añade OMDb son solo para la interfaz. */
+       los metadatos que añaden las fuentes son solo para la interfaz. */
     if (e.pinned) return id;
     const desc = describeEntry(e);
+    return desc ? id + ' ' + desc : id;
+  }
+
+  /** Cómo quedaría la línea si se le escribiera el nombre tras el ID (solo si hay título). */
+  function lineWithTitle(e) {
+    const id = idPartOf(e);
+    if (!String(e.title || '').trim()) return id;          // sin metadatos no se inventa texto
+    const desc = describeEntry({ label: '', title: e.title, year: e.year, season: e.season, episode: e.episode });
     return desc ? id + ' ' + desc : id;
   }
 
@@ -858,7 +876,7 @@
   /* Expuesto para tests automáticos del núcleo (Node) */
   const CORE = {
     parseWatchlist, serializeWatchlist, lineFor, describeEntry, makeEntry, splitTitleYear,
-    parseManualLine, diffLines, statsOf, keyOf, granularityOf,
+    parseManualLine, diffLines, statsOf, keyOf, granularityOf, idPartOf, lineWithTitle,
     b64EncodeUtf8, b64DecodeUtf8, imdbQidToType, DEFAULT_CFG
   };
   if (typeof window !== 'undefined') window.PFX_CORE = CORE;
@@ -2630,6 +2648,7 @@
     renderHeader();
     renderList();
     renderPreview();
+    updateWriteTitlesButton();
     const pushBtns = [$('#btnPush'), $('#btnPush2')];
     pushBtns.forEach((b) => {
       if (!b) return;
@@ -2964,6 +2983,9 @@
       }
     }
     if (lines.length > 1) warn.push(lines.length + ' líneas nuevas.');
+    if ((pickerMode() === 'season' || pickerMode() === 'episodes') && !String(cfg.tmdbKey || '').trim()) {
+      warn.push('Aviso: la Action necesita TMDB_API_KEY en los secrets para expandir las líneas :sN; sin ella las ignora.');
+    }
     $('#pickWarn').textContent = warn.join(' ');
     $('#pickEpInfo').textContent = epInfo;
     $('#btnAddPick').disabled = lines.length === 0;
@@ -3019,6 +3041,73 @@
     touch();
     const label = it.kind === 'entry' ? describeEntry(it.entry) : it.text;
     toast('Eliminado: ' + (label || 'línea'), 'info', null, 2600);
+  }
+
+  /* ------------- Escribir los títulos en las líneas que solo traen ID ------------- */
+
+  /** Entradas cuyo texto humano aún no está escrito en el archivo. */
+  function pinnedEntries() {
+    return seq.filter((it) => it.kind === 'entry' && it.entry.pinned && it.entry.imdbId);
+  }
+
+  function updateWriteTitlesButton() {
+    const btn = $('#btnWriteTitles');
+    if (!btn) return;
+    const n = pinnedEntries().length;
+    btn.disabled = n === 0;
+    btn.dataset.tip = n
+      ? 'Escribe «Título (Año)» tras el ID en ' + n + ' línea(s). La GitHub Action usa ese texto para mostrarlo en la web.'
+      : 'Todas las líneas ya llevan texto';
+    btn.classList.toggle('opacity-50', n === 0);
+    const counter = $('#writeTitlesCount');
+    if (counter) counter.textContent = n ? String(n) : '';
+  }
+
+  async function writeTitles() {
+    const targets = pinnedEntries();
+    if (!targets.length) { toast('Todas las líneas ya llevan texto.', 'info'); return; }
+
+    /* 1 · Completar metadatos de lo que falte (sin tocar el archivo todavía) */
+    const t = toast('Buscando metadatos para ' + targets.length + ' línea(s)…', 'loading', null, 0);
+    for (const it of targets) {
+      try { await enrichEntry(it.entry); } catch (_) { /* se omite */ }
+      await sleep(60);
+    }
+    const ready = targets.filter((it) => it.entry.title);
+    const without = targets.filter((it) => !it.entry.title);
+    t.close();
+
+    if (!ready.length) {
+      toast('Ninguna fuente devolvió títulos para esas líneas. Añade una clave de OMDb o TMDB en Ajustes y vuelve a intentarlo.',
+        'warn', 'Sin metadatos', 9000);
+      return;
+    }
+
+    /* 2 · Propuesta de cambios */
+    const changes = ready
+      .map((it) => ({ entry: it.entry, from: lineFor(it.entry), to: lineWithTitle(it.entry) }))
+      .filter((c) => c.from !== c.to);
+
+    if (!changes.length) { toast('Las líneas ya están como estaban previstas.', 'info'); return; }
+
+    const sample = changes.slice(0, 8).map((c) =>
+      '<div><span class="text-zinc-500">' + esc(c.from) + '</span> <span class="text-emerald-400">→</span> ' +
+      '<span class="text-emerald-200">' + esc(c.to) + '</span></div>').join('');
+    const ok = await ask({
+      title: 'Escribir el título en ' + changes.length + ' línea(s)',
+      bodyHtml: '<p>La GitHub Action mostrará este texto en la web. Se conservan los IDs y el resto de líneas del archivo.</p>' +
+        '<div class="max-h-56 overflow-auto rounded-lg border border-zinc-700 bg-zinc-950/60 p-3 font-mono text-[11.5px] leading-5">' + sample +
+        (changes.length > 8 ? '<div class="text-zinc-500">… y ' + (changes.length - 8) + ' más</div>' : '') + '</div>' +
+        (without.length ? '<p class="text-amber-300/90">' + without.length + ' línea(s) se quedarán solo con el ID: no se encontraron metadatos.</p>' : ''),
+      okText: 'Escribir los títulos'
+    });
+    if (!ok) return;
+
+    changes.forEach((c) => { c.entry.pinned = false; c.entry.label = ''; });
+    touch();
+    toast('Se añadieron nombres a ' + changes.length + ' línea(s).' +
+      (without.length ? ' ' + without.length + ' se quedaron sin cambios.' : '') +
+      ' Pulsa «Guardar» para actualizar el archivo.', 'success', 'Listo', 7000);
   }
 
   /* ------------------------------ Añadir manual ------------------------------ */
@@ -3563,6 +3652,7 @@
     $('#askExtra').addEventListener('click', () => resolveAsk('extra'));
 
     /* --- Lista: importar / exportar / vaciar --- */
+    $('#btnWriteTitles').addEventListener('click', () => writeTitles());
     $('#btnImport').addEventListener('click', () => $('#fileInput').click());
     $('#fileInput').addEventListener('change', (ev) => {
       const file = ev.target.files && ev.target.files[0];

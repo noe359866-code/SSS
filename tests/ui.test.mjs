@@ -62,9 +62,53 @@ const matchQuery = (title, url) => {
   return t.indexOf(q) !== -1 || words.some((w) => w.length > 3 && t.indexOf(w) !== -1);
 };
 
+/* Archivo real del proyecto (solo IDs + cabecera de comentarios) */
+const REAL_WL = [
+  '# Peerflix Static \u2013 Watchlist',
+  '',
+  '# -----------------------------------------------------------',
+  '# Una l\u00ednea por t\u00edtulo. La Action consultar\u00e1 peerflix.mov por cada una',
+  '# y publicar\u00e1 los streams en public/data/.',
+  '#',
+  '# Formatos soportados:',
+  '#   tt1234567          -> pel\u00edcula (IMDb)',
+  '#   tt1234567:s3:e4    -> episodio concreto (serie, temporada 3, ep. 4)',
+  '#   tt1234567:s3       -> todos los episodios conocidos de la temporada 3',
+  '#                         (necesita TMDB_API_KEY para expandir; si no hay clave,',
+  '#                          se ignora la l\u00ednea con aviso)',
+  '#',
+  '# L\u00edneas que empiezan por \'#\' son comentarios. Se ignoran l\u00edneas vac\u00edas.',
+  '# Puedes a\u00f1adir un nombre humano tras un espacio para que la web lo muestre:',
+  '#   tt0111161 Cadena perpetua (1994)',
+  '#   tt1375666 Inception (2010)',
+  '#   tt0944947:s1:e1 Game of Thrones S01E01',
+  '#',
+  '# Si defines TMDB_API_KEY en secrets (opcional), el script puede expandir',
+  '# temporadas autom\u00e1ticamente y enriquecer metadatos (t\u00edtulo, a\u00f1o, p\u00f3ster).',
+  '# Si no, usa el nombre que pongas en esta misma l\u00ednea.',
+  '# -----------------------------------------------------------',
+  'tt6933238',
+  'tt22526100',
+  'tt26657236',
+  'tt29355505',
+  'tt11561116',
+  ''
+].join('\n');
+
+/* Fichas que sólo existen para el enriquecimiento (no salen en las búsquedas) */
+const REAL_IDS = [
+  { imdb: 'tt6933238', title: 'La Última Frontera', year: 2026, type: 'movie' },
+  { imdb: 'tt22526100', title: 'Ciudad de Cristal', year: 2025, type: 'movie' },
+  { imdb: 'tt26657236', title: 'El Silencio del Mar', year: 2024, type: 'movie' },
+  { imdb: 'tt29355505', title: 'Sombras de Neón', year: 2026, type: 'movie' },
+  { imdb: 'tt11561116', title: 'Cosecha Amarga', year: 2025, type: 'movie' }
+];
+const KNOWN = CATALOG.concat(REAL_IDS);
+
 let calls = [];
 let putBody = null;
 let forceStatus = null;
+let remoteText = REMOTE;
 
 function json(status, data, statusText) {
   return {
@@ -93,8 +137,8 @@ function mockFetch(url, opts = {}) {
       }));
     }
     return Promise.resolve(json(200, {
-      name: 'watchlist.txt', path: 'watchlist.txt', sha: 'abc123def4567890', size: Buffer.byteLength(REMOTE, 'utf8'),
-      encoding: 'base64', content: b64(REMOTE), html_url: 'https://github.com/o/r/blob/main/watchlist.txt'
+      name: 'watchlist.txt', path: 'watchlist.txt', sha: 'abc123def4567890', size: Buffer.byteLength(remoteText, 'utf8'),
+      encoding: 'base64', content: b64(remoteText), html_url: 'https://github.com/o/r/blob/main/watchlist.txt'
     }));
   }
   if (/api\.github\.com\/repos\/o\/r\/commits/.test(url)) {
@@ -135,7 +179,7 @@ function mockFetch(url, opts = {}) {
   }
   if (/api\.imdbapi\.dev\/titles\/tt/.test(url)) {
     const id = (/titles\/(tt\d+)/.exec(url) || [])[1];
-    const row = CATALOG.find((c) => c.imdb === id);
+    const row = KNOWN.find((c) => c.imdb === id);
     if (!row) return Promise.resolve(json(404, { message: 'not found' }));
     return Promise.resolve(json(200, {
       id: row.imdb, type: row.type === 'movie' ? 'MOVIE' : 'TV_SERIES',
@@ -157,7 +201,7 @@ function mockFetch(url, opts = {}) {
     const meta = /\/meta\/(movie|series)\/(tt\d+)\.json/.exec(url);
     if (meta) {
       const kind = meta[1], id = meta[2];
-      const row = CATALOG.find((c) => c.imdb === id && c.type === kind);
+      const row = KNOWN.find((c) => c.imdb === id && c.type === kind);
       if (!row) return Promise.resolve(json(404, { err: 'not found' }));
       const videos = id === 'tt0944947' ? gotVideos() : id === 'tt0903747' ? bbVideos() : null;
       return Promise.resolve(json(200, { meta: { id: id, type: kind, name: row.title, releaseInfo: String(row.year),
@@ -177,7 +221,7 @@ function mockFetch(url, opts = {}) {
   }
   if (/api\.tvmaze\.com\/lookup\/shows\?imdb=/.test(url)) {
     const id = (/imdb=(tt\d+)/.exec(url) || [])[1];
-    const row = CATALOG.find((c) => c.imdb === id && c.type === 'series');
+    const row = KNOWN.find((c) => c.imdb === id && c.type === 'series');
     if (!row) return Promise.resolve(json(404, { message: 'not found', name: 'Not Found' }));
     const idx = CATALOG.filter((c) => c.type === 'series').indexOf(row);
     return Promise.resolve(json(200, { id: 100 + idx, name: row.title, premiered: row.year + '-01-01',
@@ -290,7 +334,15 @@ function mockFetch(url, opts = {}) {
     const id = m[1] === 'tv' ? 'tt0944947' : (m[2] === '999999' ? 'tt7777777' : 'tt0133093');
     return Promise.resolve(json(200, { imdb_id: id }));
   }
-  if (/api\.themoviedb\.org\/3\/(find|movie|tv)\//.test(url)) {
+  if (/api\.themoviedb\.org\/3\/find\//.test(url)) {
+    const id = (/(tt\d+)/.exec(url) || [])[1];
+    const row = KNOWN.find((c) => c.imdb === id);
+    if (!row) return Promise.resolve(json(200, { movie_results: [], tv_results: [] }));
+    return Promise.resolve(json(200, row.type === 'series'
+      ? { movie_results: [], tv_results: [{ id: 1399, name: row.title }] }
+      : { movie_results: [{ id: 603, title: row.title }], tv_results: [] }));
+  }
+  if (/api\.themoviedb\.org\/3\/(movie|tv)\//.test(url)) {
     const isTv = /\/tv\//.test(url);
     return Promise.resolve(json(200, isTv
       ? { id: 1399, name: 'Game of Thrones', first_air_date: '2011-04-17', number_of_seasons: 8,
@@ -303,7 +355,7 @@ function mockFetch(url, opts = {}) {
   if (/omdbapi\.com/.test(url)) {
     if (/[?&]i=tt/.test(url)) {
       const id = (/[?&]i=(tt\d+)/.exec(url) || [])[1];
-      const row = CATALOG.find((c) => c.imdb === id);
+      const row = KNOWN.find((c) => c.imdb === id);
       if (!row) return Promise.resolve(json(200, { Response: 'False', Error: 'Movie not found!' }));
       return Promise.resolve(json(200, {
         Response: 'True', Title: row.title, Year: String(row.year), Type: row.type,
@@ -821,6 +873,94 @@ await t('los botones de solo icono tienen etiqueta accesible', () => {
     if (!el) return;
     if (!el.getAttribute('aria-label') && !el.textContent.trim()) throw new Error(sel + ' sin aria-label');
   });
+});
+
+section('11. Archivo real del proyecto Peerflix Static');
+await t('carga el watchlist real sin modificar ni un byte', async () => {
+  remoteText = REAL_WL;
+  $('#btnPull').click();
+  await waitFor(() => !$('#modalAsk').classList.contains('hidden'), 'aviso de cambios locales');
+  $('#askOk').click();
+  await waitFor(() => entryCards().length === 5, '5 entradas cargadas');
+  if (previewLines().join('\n') + '\n' !== REAL_WL) {
+    throw new Error('round-trip roto:\n' + JSON.stringify(previewLines().join('\n') + '\n'));
+  }
+  if (!/tt1234567          -> película \(IMDb\)/.test(previewText())) throw new Error('se perdió la cabecera de comentarios');
+  if ($('#wlStats').textContent.indexOf('Comentarios: 22') === -1) throw new Error('comentarios: ' + $('#wlStats').textContent);
+});
+await t('la lista resuelve los títulos por las fuentes, sin escribir en el archivo', async () => {
+  await waitFor(() => /La Última Frontera/.test($('#list').textContent), 'títulos resueltos');
+  ['Ciudad de Cristal', 'El Silencio del Mar', 'Sombras de Neón', 'Cosecha Amarga'].forEach((tt) => {
+    if ($('#list').textContent.indexOf(tt) === -1) throw new Error('falta «' + tt + '» en la lista');
+  });
+  ['tt6933238', 'tt22526100', 'tt26657236', 'tt29355505', 'tt11561116'].forEach((id) => {
+    if (previewLines().indexOf(id) === -1) throw new Error('la línea ' + id + ' se modificó sola');
+  });
+  if ($('#wlStats').textContent.indexOf('Películas: 5') === -1) throw new Error('clasificación: ' + $('#wlStats').textContent);
+});
+await t('«Escribir títulos» propone las 5 líneas con nombre', async () => {
+  const btn = $('#btnWriteTitles');
+  if (btn.disabled) throw new Error('el botón debería estar activo');
+  if ($('#writeTitlesCount').textContent !== '5') throw new Error('contador: ' + $('#writeTitlesCount').textContent);
+  btn.click();
+  await waitFor(() => !$('#modalAsk').classList.contains('hidden'), 'confirmación de títulos');
+  const body = $('#askBody').textContent;
+  if (!/tt6933238 La Última Frontera \(2026\)/.test(body.replace(/\s+/g, ' '))) {
+    throw new Error('la propuesta no muestra la línea esperada: ' + body.slice(0, 300));
+  }
+  if (!/Escribir el título en 5 línea/.test($('#askTitle').textContent)) throw new Error('título del diálogo: ' + $('#askTitle').textContent);
+  $('#askOk').click();
+  await waitFor(() => previewLines().indexOf('tt6933238 La Última Frontera (2026)') !== -1, 'línea reescrita');
+  ['tt22526100 Ciudad de Cristal (2025)', 'tt26657236 El Silencio del Mar (2024)',
+   'tt29355505 Sombras de Neón (2026)', 'tt11561116 Cosecha Amarga (2025)'].forEach((l) => {
+    if (previewLines().indexOf(l) === -1) throw new Error('falta la línea «' + l + '»: ' + JSON.stringify(previewLines()));
+  });
+  if (previewLines()[0] !== '# Peerflix Static – Watchlist') throw new Error('se alteró la cabecera');
+  if ($('#btnWriteTitles').disabled !== true) throw new Error('el botón debería quedar desactivado');
+});
+await t('el PUT envía los nombres y conserva los 22 comentarios', async () => {
+  putBody = null;
+  $('#btnPush').click();
+  await waitFor(() => !$('#modalAsk').classList.contains('hidden'), 'confirmación de guardado');
+  $('#askOk').click();
+  await waitFor(() => putBody !== null, 'PUT enviado');
+  const sent = unb64(putBody.content);
+  if (sent !== previewLines().join('\n') + '\n') throw new Error('el PUT no coincide con la vista previa');
+  ['tt6933238 La Última Frontera (2026)', 'tt11561116 Cosecha Amarga (2025)'].forEach((l) => {
+    if (sent.indexOf(l) === -1) throw new Error('falta «' + l + '»');
+  });
+  const comments = sent.split('\n').filter((l) => l.trim().charAt(0) === '#').length;
+  if (comments !== 22) throw new Error('comentarios enviados: ' + comments);
+  if (sent.indexOf('#   tt1234567          -> película (IMDb)') === -1) throw new Error('se perdió la documentación del formato');
+  if (sent.indexOf('#   tt0944947:s1:e1 Game of Thrones S01E01') === -1) throw new Error('se perdió el ejemplo de episodio');
+});
+await t('avisa de que las líneas :sN necesitan TMDB_API_KEY (solo si falta)', async () => {
+  setVal('#cfgTmdb', '');          // se quita la clave de TMDB
+  $('#btnSaveCfg').click();
+  await wait(60);
+  await selectSource('imdb');
+  await searchFor('game of thr');
+  await waitFor(() => !!resultByTitle('Game of Thrones'), 'resultado GoT');
+  resultByTitle('Game of Thrones').querySelector('button[data-add]').click();
+  await waitFor(() => $('#pickSeasonSelect').options.length === 8, 'temporadas listas');
+  $('#pickMode button[data-mode="season"]').click();
+  setVal('#pickSeasonSelect', '3');
+  if (!/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
+    throw new Error('sin clave de TMDB debería avisar: «' + $('#pickWarn').textContent + '»');
+  }
+  /* con clave configurada el aviso desaparece */
+  setVal('#cfgTmdb', 'clave-tmdb-32');
+  $('#btnSaveCfg').click();
+  await wait(60);
+  setVal('#pickSeasonSelect', '4');
+  if (/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
+    throw new Error('con clave de TMDB no debería avisar: ' + $('#pickWarn').textContent);
+  }
+  $('#btnCancelPick').click();
+  await selectSource('all');
+});
+await t('sin errores de script tras todo el flujo real', () => {
+  if (jsdomErrors.length) throw new Error(jsdomErrors.join(' | '));
 });
 
 /* ------------------------------------------------------------------ */
