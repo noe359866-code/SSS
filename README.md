@@ -32,8 +32,8 @@ IMDb Suggest, imdbapi.dev, Cinemeta, TVMaze, Wikidata, AniList e IMDbOT.
 |---|---|
 | `# comentario` | comentario: se conserva tal cual |
 | `tt0111161 The Shawshank Redemption (1994)` | película / serie completa |
-| `tt0944947:s3 Game of Thrones Temporada 3` | temporada completa |
-| `tt0903747:s2:e5 Breaking Bad S02E05` | episodio concreto |
+| `tt0903747:s2:e5 Breaking Bad S02E05` | **episodio concreto** (lo que usa el buscador para series) |
+| `tt0944947:s3 Game of Thrones Temporada 3` | temporada completa (requiere `TMDB_API_KEY` en la Action) |
 | `tt0133093` | solo ID IMDb (sin texto) |
 
 La edición es **fiel al original**: se preservan comentarios, líneas en blanco, el orden y el texto
@@ -92,9 +92,12 @@ Cada fuente se puede **probar** y **desactivar** individualmente desde el panel 
 - **Resolución de IDs**: si una fuente no da el `tt…` (TMDB, Wikidata, AniList), se prueba
   TMDB `external_ids` → Wikidata → imdbapi.dev → Cinemeta → TVMaze → OMDb. TMDB devuelve a menudo
   títulos localizados, así que se ignoran acentos y signos antes de comparar.
-- **Modal de temporada/episodio**: serie completa, temporada `:sN` o rango de episodios `:sN:eM`,
-  con **nº de temporadas y de episodios por temporada** (Cinemeta/TVMaze/TMDB/OMDb), aviso si el
-  rango supera lo disponible, vista previa exacta de las líneas y detección de duplicados.
+- **Modal de temporada/episodio**: en **series siempre se eligen temporada y episodio concretos**
+  (`tt1234567:s3:e4`, y admite un rango de episodios). El modal trae el **nº de temporadas y de
+  episodios por temporada** (Cinemeta/TVMaze/TMDB/OMDb), avisa si el rango se pasa de lo disponible,
+  muestra la vista previa exacta de las líneas y detecta duplicados. Los modos «temporada completa
+  (`:sN`)» y «serie completa» solo aparecen al **editar** una línea que ya existía así en el archivo,
+  para poder guardarla tal cual.
 - **Lista interactiva**: tarjeta por línea con póster, tipo, la línea literal que se escribirá,
   edición y borrado individual.
 - **Vista previa en tiempo real** con numeración, resaltado de sintaxis y marcas de altas/bajas
@@ -104,6 +107,10 @@ Cada fuente se puede **probar** y **desactivar** individualmente desde el panel 
 - **Importar / descargar / copiar** el archivo y descartar cambios locales.
 - **Errores explícitos** para 401 (token/clave), 403 (permisos o límite), 404 (ruta), 409 (sha
   desfasado), 422 (validación), fallos de red/CORS y *timeouts*, con avisos por *toast*.
+- **Avisos de formato**: si una serie entra sin temporada ni episodio por el cuadro manual se avisa
+  de que corresponde `tt1234567:s3:e4`; y al preparar una **temporada completa `:sN`** se recuerda
+  que la Action necesita `TMDB_API_KEY` en los *secrets* para expandirla (los episodios concretos
+  `:sX:eY` no dependen de esa clave).
 
 ## Seguridad
 
@@ -128,7 +135,7 @@ Cada fuente se puede **probar** y **desactivar** individualmente desde el panel 
 
 ```bash
 npm install     # instala jsdom (única dependencia, de desarrollo)
-npm test        # 55 pruebas de núcleo + 54 de interfaz
+npm test        # 55 pruebas de núcleo + 57 de interfaz
 ```
 
 - `tests/core.test.mjs` extrae el script de `index.html` y valida el parser/serializador
