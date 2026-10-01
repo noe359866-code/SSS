@@ -424,8 +424,10 @@ const resultByTitle = (title) => resultCards().find((c) => cardTitle(c) === titl
 async function selectSource(id) {
   const sel = $('#sourceSelect');
   sel.value = id;
+  if (sel.value !== id) console.log('    [debug] el selector no acepta «' + id + '» → ' + JSON.stringify(sel.value) + ' | opciones=' + Array.from(sel.querySelectorAll('option:not([disabled])')).map((o) => o.value).join(','));
   fire(sel, 'change');
   await wait(20);
+  if (process.env.PFX_DEBUG) console.log('    [debug] selectSource(' + id + ') → state=' + window.PFX_STATE().searchSource + ' select=' + $('#sourceSelect').value);
 }
 async function searchFor(q) {
   setVal('#searchInput', q);
@@ -604,28 +606,34 @@ await t('filtra por tipo (Series)', async () => {
   if (titles.indexOf('Game of Thrones') === -1) throw new Error('falta Game of Thrones: ' + titles.join(', '));
   $('#typeFilter button[data-type="all"]').click();
 });
-await t('resuelve el ID de IMDb de fuentes sin ID (AniList → imdbapi.dev)', async () => {
-  /* Se desactivan todas las fuentes menos AniList para forzar la resolución */
+await t('resuelve el ID de IMDb de fuentes sin ID (AniList) y añade temporada + episodio', async () => {
+  /* Se desactivan todas las fuentes menos AniList para forzar el enlace del ID */
   setSourcesEnabled(['anilist']);
   await wait(20);
   await selectSource('all');
   await searchFor('kaiju');
-  const card = resultByTitle('Kaiju No. 8');
-  if (!card) throw new Error('AniList no devolvió «Kaiju No. 8»: ' + resultCards().map(cardTitle).join(', '));
-  if (!/se resolverá el IMDb id/.test(card.textContent)) throw new Error('debería avisar de que falta el IMDb id');
-  card.querySelector('button[data-add]').click();
-  /* Es una serie: se abre el modal, que resuelve el ID y permite elegir temporada */
-  await waitFor(() => !$('#modalPicker').classList.contains('hidden'), 'modal del picker');
-  await waitFor(() => /tt9999999/.test($('#pickImdb').textContent), 'ID resuelto en el picker');
-  await waitFor(() => !$('#btnAddPick').disabled, 'botón de añadir habilitado');
-  $('#btnAddPick').click();
-  await waitFor(() => /tt9999999/.test(previewText()), 'ID resuelto y añadido');
-  const stats = $('#wlStats').textContent;
-  if (stats.indexOf('Series: ') === -1) throw new Error('no se clasificó como serie: ' + stats);
-  /* Se restauran todas las fuentes */
-  setSourcesEnabled(null);
+
+  let error = null;
+  try {
+    const card = resultByTitle('Kaiju No. 8');
+    if (!card) throw new Error('AniList no devolvió «Kaiju No. 8»: ' + resultCards().map(cardTitle).join(', '));
+    if (!/se resolverá el IMDb id/.test(card.textContent)) throw new Error('debería avisar de que falta el IMDb id');
+    card.querySelector('button[data-add]').click();
+    await waitFor(() => !$('#modalPicker').classList.contains('hidden'), 'picker abierto');
+    await waitFor(() => /tt9999999/.test($('#pickImdb').textContent), 'ID resuelto en el picker');
+    await waitFor(() => !$('#btnAddPick').disabled, 'botón de añadir habilitado');
+    $('#btnAddPick').click();
+    await waitFor(() => /tt9999999:s1:e1 Kaiju No\. 8 S01E01/.test(previewText()), 'añadida con temporada y episodio');
+    const stats = $('#wlStats').textContent;
+    if (!/Episodios: \d/.test(stats)) throw new Error('no se contó como episodio: ' + stats);
+  } catch (e) {
+    error = e;
+  }
+  setSourcesEnabled(null);       // todas las fuentes vuelven a estar activas
   await wait(20);
+  if (error) throw error;
 });
+
 await t('una fuente caída no rompe la búsqueda múltiple', async () => {
   const before = calls.length;
   await searchFor('matrix');
@@ -638,13 +646,18 @@ await t('Trakt con clave inválida se reporta sin abortar el resto', async () =>
   await wait(30);
   await searchFor('matrix');
   const txt = $('#toasts').textContent + $('#sourceChips').textContent;
-  if (!/Trakt/.test(txt)) throw new Error('no se menciona a Trakt en el error');
-  if (!/401|client_id/i.test(txt)) throw new Error('no se explica el motivo: ' + txt.slice(0, 300));
-  if (!resultCards().length) throw new Error('el fallo de Trakt tumbó la búsqueda');
+  const mentions = /Trakt/.test(txt);
+  const explained = /401|client_id/i.test(txt);
+  const keptGoing = resultCards().length > 0;
+  /* se restaura la clave correcta pase lo que pase */
   setVal('#cfgTrakt', 'clave-trakt');
   $('#btnSaveCfg').click();
   await wait(30);
+  if (!mentions) throw new Error('no se menciona a Trakt: ' + txt.slice(0, 300));
+  if (!explained) throw new Error('no se explica el motivo (401/client_id): ' + txt.slice(0, 400));
+  if (!keptGoing) throw new Error('el fallo de Trakt tumbó la búsqueda');
 });
+
 await t('cada fuente por separado devuelve resultados', async () => {
   const ids = ['imdb', 'imdbapi', 'cinemeta', 'tvmaze', 'wikidata', 'anilist', 'imdbot', 'tmdb', 'omdb', 'trakt', 'simkl'];
   for (const id of ids) {
@@ -685,17 +698,41 @@ await t('avisa cuando el rango de episodios supera la temporada', () => {
     throw new Error('info de episodios: ' + $('#pickEpInfo').textContent);
   }
 });
-await t('modo serie completa, temporada y episodio generan las líneas correctas', () => {
-  $('#pickMode button[data-mode="series"]').click();
-  if (!/^tt0944947 Game of Thrones \(2011\)$/m.test($('#pickPreview').textContent)) throw new Error('serie completa');
-  $('#pickMode button[data-mode="season"]').click();
-  setVal('#pickSeasonSelect', '4');
-  if (!/tt0944947:s4 Game of Thrones Temporada 4/.test($('#pickPreview').textContent)) throw new Error('temporada');
-  $('#pickMode button[data-mode="episodes"]').click();
+await t('una serie nueva sólo se puede añadir con temporada y episodio', () => {
+  const modeButtons = $$('#pickMode button');
+  const visible = modeButtons.filter((b) => !b.classList.contains('hidden')).map((b) => b.dataset.mode);
+  if (visible.length !== 1 || visible[0] !== 'episodes') {
+    throw new Error('modos visibles para una serie nueva: ' + visible.join(', '));
+  }
+  if ($('#pickMode button[data-mode="episodes"]').classList.contains('active') !== true) {
+    throw new Error('el modo por defecto debería ser temporada y episodio');
+  }
+  if (!/temporada y episodio concretos/i.test($('#pickRule').textContent)) {
+    throw new Error('falta la regla visible: ' + $('#pickRule').textContent);
+  }
+  if (!/Elegir temporada y episodio/.test(resultCards()[0].textContent)) {
+    throw new Error('el botón del resultado debería decirlo');
+  }
+});
+await t('genera la línea tt…:sX:eY con la temporada y el episodio elegidos', () => {
   setVal('#pickSeasonSelect', '2'); setVal('#pickEpFrom', '3'); setVal('#pickEpTo', '5');
   const txt = $('#pickPreview').textContent;
   ['tt0944947:s2:e3 Game of Thrones S02E03', 'tt0944947:s2:e4 Game of Thrones S02E04', 'tt0944947:s2:e5 Game of Thrones S02E05']
     .forEach((l) => { if (txt.indexOf(l) === -1) throw new Error('falta «' + l + '»'); });
+  if (/^tt0944947 Game of Thrones/m.test(txt)) throw new Error('no debe ofrecer la serie completa');
+});
+await t('no permite confirmar sin episodio (vuelve al modo correcto)', async () => {
+  /* se fuerza un estado incoherente y la app debe corregirlo */
+  const btnSeries = $('#pickMode button[data-mode="series"]');
+  btnSeries.classList.remove('hidden');
+  btnSeries.classList.add('active');
+  $('#pickMode button[data-mode="episodes"]').classList.remove('active');
+  $('#btnAddPick').click();
+  await wait(40);
+  const visible = $$('#pickMode button').filter((b) => !b.classList.contains('hidden')).map((b) => b.dataset.mode);
+  if (visible.length !== 1 || visible[0] !== 'episodes') throw new Error('no se restauró el modo: ' + visible.join(', '));
+  if (!/temporada y episodio concretos/i.test($('#toasts').textContent)) throw new Error('no avisó del requisito');
+  setVal('#pickSeasonSelect', '2'); setVal('#pickEpFrom', '3'); setVal('#pickEpTo', '5');
 });
 await t('añade los 3 episodios', async () => {
   $('#btnAddPick').click();
@@ -721,6 +758,34 @@ await t('omite duplicados al repetir el mismo alta', async () => {
   }
   if (!/ya existían|omitieron/.test($('#toasts').textContent)) throw new Error('no se avisó del duplicado');
   await selectSource('all');
+});
+await t('editar una línea de temporada del archivo conserva su formato :sN', async () => {
+  const card = entryCards().find((c) => /Game of Thrones Temporada 3/.test(c.textContent));
+  if (!card) throw new Error('no está la línea de temporada en la lista');
+  card.querySelector('button[data-edit]').click();
+  await waitFor(() => !$('#modalPicker').classList.contains('hidden'), 'picker de edición');
+  const visible = $$('#pickMode button').filter((b) => !b.classList.contains('hidden')).map((b) => b.dataset.mode);
+  if (visible.indexOf('season') === -1) throw new Error('al editar debe ofrecerse el modo de temporada: ' + visible.join(', '));
+  if ($('#pickMode button[data-mode="season"]').classList.contains('active') !== true) {
+    throw new Error('debería abrirse en el modo actual de la línea');
+  }
+  /* una temporada completa (:sN) sí necesita TMDB_API_KEY en la Action */
+  setVal('#cfgTmdb', '');
+  $('#btnSaveCfg').click();
+  await wait(60);
+  setVal('#pickSeasonSelect', '5');
+  if (!/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
+    throw new Error('la línea :sN debería avisar sin clave de TMDB: «' + $('#pickWarn').textContent + '»');
+  }
+  setVal('#cfgTmdb', 'clave-tmdb-32');
+  $('#btnSaveCfg').click();
+  await wait(60);
+  setVal('#pickSeasonSelect', '6');
+  if (/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
+    throw new Error('con clave de TMDB no debería avisar: ' + $('#pickWarn').textContent);
+  }
+  $('#btnCancelPick').click();
+  await wait(40);
 });
 await t('películas: el modal explica que es una única línea', async () => {
   await selectSource('imdb');
@@ -934,8 +999,8 @@ await t('el PUT envía los nombres y conserva los 22 comentarios', async () => {
   if (sent.indexOf('#   tt1234567          -> película (IMDb)') === -1) throw new Error('se perdió la documentación del formato');
   if (sent.indexOf('#   tt0944947:s1:e1 Game of Thrones S01E01') === -1) throw new Error('se perdió el ejemplo de episodio');
 });
-await t('avisa de que las líneas :sN necesitan TMDB_API_KEY (solo si falta)', async () => {
-  setVal('#cfgTmdb', '');          // se quita la clave de TMDB
+await t('un episodio concreto no depende de TMDB_API_KEY en la Action', async () => {
+  setVal('#cfgTmdb', '');          // sin clave de TMDB
   $('#btnSaveCfg').click();
   await wait(60);
   await selectSource('imdb');
@@ -943,19 +1008,17 @@ await t('avisa de que las líneas :sN necesitan TMDB_API_KEY (solo si falta)', a
   await waitFor(() => !!resultByTitle('Game of Thrones'), 'resultado GoT');
   resultByTitle('Game of Thrones').querySelector('button[data-add]').click();
   await waitFor(() => $('#pickSeasonSelect').options.length === 8, 'temporadas listas');
-  $('#pickMode button[data-mode="season"]').click();
   setVal('#pickSeasonSelect', '3');
-  if (!/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
-    throw new Error('sin clave de TMDB debería avisar: «' + $('#pickWarn').textContent + '»');
+  setVal('#pickEpFrom', '1'); setVal('#pickEpTo', '2');
+  if (/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
+    throw new Error('los episodios :sX:eY no necesitan TMDB: «' + $('#pickWarn').textContent + '»');
   }
-  /* con clave configurada el aviso desaparece */
-  setVal('#cfgTmdb', 'clave-tmdb-32');
+  if (!/^tt0944947:s3:e1 /m.test($('#pickPreview').textContent)) {
+    throw new Error('preview inesperado: ' + $('#pickPreview').textContent);
+  }
+  setVal('#cfgTmdb', 'clave-tmdb-32');   // se restaura la clave
   $('#btnSaveCfg').click();
   await wait(60);
-  setVal('#pickSeasonSelect', '4');
-  if (/TMDB_API_KEY/.test($('#pickWarn').textContent)) {
-    throw new Error('con clave de TMDB no debería avisar: ' + $('#pickWarn').textContent);
-  }
   $('#btnCancelPick').click();
   await selectSource('all');
 });

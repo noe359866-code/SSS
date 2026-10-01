@@ -102,6 +102,7 @@
   pre.code .line:hover{ background: rgba(63,63,70,.35); }
   .mark-add{ background: rgba(52,211,153,.12); box-shadow: inset 2px 0 0 var(--acc); }
   .mark-del{ background: rgba(248,113,113,.12); box-shadow: inset 2px 0 0 var(--danger); text-decoration: line-through; }
+  .hidden{ display:none !important; }
   .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   [data-tip]{ position:relative; }
   [data-tip]:hover::after{ content: attr(data-tip); position:absolute; bottom: calc(100% + 6px); left:50%; transform: translateX(-50%); background:#18181b; color:#e4e4e7;
@@ -218,6 +219,8 @@
         <p class="text-[11px] leading-relaxed text-zinc-500">
           Acepta IDs <code class="text-zinc-400">tt1234567</code>, líneas completas del formato watchlist, URLs de IMDb/TMDB,
           <code class="text-zinc-400">:sN</code> / <code class="text-zinc-400">:sN:eM</code> y comentarios <code class="text-zinc-400">#</code>.
+          <strong class="text-emerald-300/90">Para series usa siempre temporada y episodio:</strong>
+          <code class="text-zinc-400">tt0903747:s2:e5</code>.
         </p>
       </div>
     </section>
@@ -452,10 +455,11 @@
 
     <div class="space-y-4 p-4">
       <div class="seg" id="pickMode">
-        <button type="button" data-mode="series" class="active">Serie completa</button>
-        <button type="button" data-mode="season">Temporada</button>
-        <button type="button" data-mode="episodes">Episodio(s)</button>
+        <button type="button" data-mode="episodes" class="active">Temporada y episodio</button>
+        <button type="button" data-mode="season">Temporada completa</button>
+        <button type="button" data-mode="series">Serie completa</button>
       </div>
+      <p id="pickRule" class="text-[11px] leading-snug text-emerald-300/80"></p>
 
       <div id="pickSeasonRow" class="grid gap-3 sm:grid-cols-2">
         <div>
@@ -2493,7 +2497,7 @@
           '<div class="mt-2 flex flex-wrap gap-1.5">' +
             '<button class="btn btn-xs btn-primary" data-add="' + i + '">' +
               '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>' +
-              (r.mediaType === 'series' ? 'Elegir temporada/episodio' : 'Añadir a la lista') + '</button>' +
+              (r.mediaType === 'series' ? 'Elegir temporada y episodio' : 'Añadir a la lista') + '</button>' +
           '</div>' +
         '</div>' +
       '</article>';
@@ -2827,17 +2831,43 @@
   }
 
   /* ------------------- Modal temporada / episodio (picker) ------------------- */
+  const PICK_MODES = ['series', 'season', 'episodes'];
+
   function pickerMode() {
     const active = $('#pickMode button.active');
-    return active ? active.dataset.mode : 'series';
+    return active ? active.dataset.mode : 'episodes';
+  }
+
+  /**
+   * Modos permitidos. Regla del proyecto: las series se añaden siempre con
+   * temporada Y episodio concretos (`tt1234567:s3:e4`). Los modos «serie
+   * completa» y «temporada» sólo aparecen al editar una línea que ya existía
+   * así en el archivo, para poder guardarla tal cual.
+   */
+  function availablePickerModes() {
+    const legacy = (pickerCtx || {}).legacyMode;
+    if (!legacy || PICK_MODES.indexOf(legacy) === -1) return ['episodes'];
+    return legacy === 'episodes' ? ['episodes'] : ['episodes', legacy];
   }
 
   function setPickerMode(mode) {
-    $$('#pickMode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    const allowed = availablePickerModes();
+    if (allowed.indexOf(mode) === -1) mode = allowed[0];
+    $$('#pickMode button').forEach((b) => {
+      const ok = allowed.indexOf(b.dataset.mode) !== -1;
+      b.classList.toggle('hidden', !ok);
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
     const seasonRow = $('#pickSeasonRow');
     seasonRow.classList.toggle('hidden', mode === 'series');
     $('#pickEpRow').classList.toggle('hidden', mode !== 'episodes');
     $('#pickEpRow').classList.toggle('grid', mode === 'episodes');
+    const rule = $('#pickRule');
+    if (rule) {
+      rule.textContent = allowed.length > 1
+        ? 'Serie: se añaden temporada y episodio concretos. La opción adicional sólo mantiene esta línea sin episodios.'
+        : 'Las series se añaden siempre con temporada y episodio concretos (formato tt1234567:s3:e4).';
+    }
     updatePickerPreview();
   }
 
@@ -2845,6 +2875,8 @@
     pickerCtx = ctx || {};
     const e = pickerCtx.entry || makeEntry({ imdbId: '' });
     const res = pickerCtx.res || {};
+    /* Serie nueva (no es una edición) → se exige temporada + episodio */
+    pickerCtx.isNewSeries = !pickerCtx.replaceAt && e.mediaType !== 'movie';
 
     $('#pickTitle').textContent = e.title || res.title || 'Serie';
     $('#pickPosterWrap').innerHTML = posterBox(e.poster || res.poster, e.title, 'h-20 w-14');
@@ -2858,11 +2890,19 @@
       perSeason: null,
       source: e.source || 'manual'
     } : null, e);
+    const legacyMode = e.season ? (e.episode ? 'episodes' : 'season') : 'series';
+    if (pickerCtx.isNewSeries) {
+      e.season = toInt(e.season, null);   // se exige elegir temporada y episodio
+      e.episode = null;
+      pickerCtx.legacyMode = null;
+    } else {
+      pickerCtx.legacyMode = legacyMode;  // edición: se respeta el formato actual
+    }
     $('#pickEpFrom').value = String(toInt(e.episode, 1));
     $('#pickEpTo').value = String(toInt(e.episode, 1));
     $('#pickSeasonInfo').innerHTML = '<span class="text-zinc-500">Buscando temporadas y episodios…</span>';
 
-    setPickerMode(pickerCtx.mode || (e.season ? (e.episode ? 'episodes' : 'season') : 'series'));
+    setPickerMode(pickerCtx.mode || (pickerCtx.isNewSeries ? 'episodes' : legacyMode));
     openModal('#modalPicker');
     updatePickerPreview();
 
@@ -2970,6 +3010,7 @@
     if (!String(e.title || '').trim()) warn.push('Sin título: la línea llevará solo el ID.');
 
     let epInfo = '';
+    if (pickerMode() === 'episodes' && !lines.length) warn.push('Elige la temporada y el episodio que quieres añadir.');
     if (pickerMode() === 'episodes' && hint) {
       const season = readSeason();
       const avail = hint.perSeason && hint.perSeason[season] ? hint.perSeason[season] : null;
@@ -2983,8 +3024,11 @@
       }
     }
     if (lines.length > 1) warn.push(lines.length + ' líneas nuevas.');
-    if ((pickerMode() === 'season' || pickerMode() === 'episodes') && !String(cfg.tmdbKey || '').trim()) {
-      warn.push('Aviso: la Action necesita TMDB_API_KEY en los secrets para expandir las líneas :sN; sin ella las ignora.');
+    /* Sólo las líneas de temporada completa (:sN) necesitan la clave en la Action;
+       los episodios concretos (:sN:eM) se resuelven sin TMDB. */
+    const needsTmdb = lines.some((l) => l.entry.season && !l.entry.episode);
+    if (needsTmdb && !String(cfg.tmdbKey || '').trim()) {
+      warn.push('Aviso: para las líneas de temporada completa (:sN) la Action necesita TMDB_API_KEY en los secrets; sin ella las ignora.');
     }
     $('#pickWarn').textContent = warn.join(' ');
     $('#pickEpInfo').textContent = epInfo;
@@ -2993,6 +3037,11 @@
 
   async function confirmPicker() {
     if (!pickerCtx) return;
+    if (pickerCtx.isNewSeries && pickerMode() !== 'episodes') {
+      setPickerMode('episodes');
+      toast('Una serie necesita temporada y episodio concretos: elige la temporada y el episodio.', 'warn', null, 6000);
+      return;
+    }
     if (!pickerCtx.entry.imdbId) {
       const t = toast('Resolviendo el ID de IMDb…', 'loading', null, 0);
       const res = pickerCtx.res || {};
@@ -3117,6 +3166,7 @@
     const lines = raw.replace(/\r\n?/g, '\n').split('\n');
     const useEnrich = $('#chkEnrich').checked;
     const invalid = [];
+    const seriesNoEpisode = [];
     let added = 0, comments = 0, dups = 0;
     const t = toast('Procesando ' + lines.length + ' línea(s)…', 'loading', null, 0);
 
@@ -3139,6 +3189,7 @@
       }
       delete entry.__seasons;
       delete entry.__overview;
+      if (entry.mediaType === 'series' && !entry.season) seriesNoEpisode.push(entry.title || entry.imdbId);
       if (addEntry(entry, { silent: true, silentDup: true })) added += 1; else dups += 1;
       await sleep(120);   // cortesía con las APIs públicas
     }
@@ -3151,6 +3202,11 @@
     if (invalid.length) parts.push(invalid.length + ' línea(s) no reconocida(s)');
     t.update(parts.join(' · ') || 'Nada que añadir.', invalid.length ? 'warn' : 'success', invalid.length ? 8000 : 4200);
 
+    if (seriesNoEpisode.length) {
+      toast('Serie(s) sin temporada ni episodio: ' + seriesNoEpisode.slice(0, 3).join(', ') +
+        (seriesNoEpisode.length > 3 ? ' y ' + (seriesNoEpisode.length - 3) + ' más' : '') +
+        '\nPara series usa el formato tt1234567:s3:e4 (o tt1234567:s3:e4 Título S03E04).', 'warn', 'Formato de serie', 12000);
+    }
     if (invalid.length) {
       $('#manualInput').value = invalid.join('\n');
       toast('No se reconocieron ' + invalid.length + ' línea(s). Se han dejado en el cuadro para que las corrijas ' +
