@@ -38,7 +38,7 @@ class PluginRepository(
     private val settings: SettingsStore,
     private val http: Http
 ) {
-    private val _plugins = MutableStateFlow(load())
+    private val _plugins = MutableStateFlow(load().filter { it.manifest.capabilities.streams })
     val plugins: StateFlow<List<Plugin>> = _plugins.asStateFlow()
 
     private val counter = AtomicInteger(_plugins.value.size)
@@ -56,6 +56,7 @@ class PluginRepository(
         if (trimmed.isEmpty()) return InstallResult(false, Messages.needBaseUrl)
 
         val isUrl = URL_PATTERN.containsMatchIn(trimmed)
+        if (!isUrl) return InstallResult(false, Messages.needBaseUrl)
         val envelope: ManifestEnvelope = when {
             isUrl -> {
                 val body = runCatching { http.text(trimmed) }.getOrElse {
@@ -76,6 +77,12 @@ class PluginRepository(
         if (manifest.resources.isEmpty()) {
             return InstallResult(false, Messages.manifest)
         }
+        if (!manifest.capabilities.streams) {
+            return InstallResult(
+                false,
+                "Ese plugin solo aporta catálogo. Añádelo como fuente en Ajustes → Catálogo."
+            )
+        }
 
         val key = manifest.baseUrl.trimEnd('/')
         val existing = _plugins.value.firstOrNull { it.key == key }
@@ -91,7 +98,7 @@ class PluginRepository(
         persist(_plugins.value.filterNot { it.key == key } + plugin)
         return InstallResult(
             ok = true,
-            message = "${manifest.name} instalado · ${manifest.resources.joinToString(", ") { it.name }}",
+            message = "${manifest.name} instalado.",
             plugin = plugin
         )
     }
@@ -133,7 +140,11 @@ class PluginRepository(
     }
 
     fun replaceAll(list: List<Plugin>) {
-        persist(list.sortedBy { it.priority }.mapIndexed { i, plugin -> plugin.copy(priority = i) })
+        persist(
+            list.filter { it.manifest.capabilities.streams }
+                .sortedBy { it.priority }
+                .mapIndexed { i, plugin -> plugin.copy(priority = i) }
+        )
     }
 
     /** Consulta todos los plugins y devuelve la cola ya ordenada por el perfil. */
@@ -258,39 +269,4 @@ class PluginRepository(
     companion object {
         private val URL_PATTERN = Regex("^https?://", RegexOption.IGNORE_CASE)
     }
-}
-
-/** Manifests de ejemplo para el instalador (JSON en crudo). */
-object PluginExamples {
-    val catalog = """
-        {
-          "id": "com.linvo.cinemeta",
-          "version": "3.0.0",
-          "name": "Cinemeta",
-          "description": "Catálogo y metadatos de películas y series.",
-          "types": ["movie", "series"],
-          "resources": ["catalog", "meta"],
-          "catalogs": [
-            {"type": "movie", "id": "top", "name": "Películas mejor valoradas"},
-            {"type": "series", "id": "top", "name": "Series mejor valoradas"}
-          ],
-          "idPrefixes": ["tt"],
-          "transportUrl": "https://v3-cinemeta.strem.io/manifest.json"
-        }
-    """.trimIndent()
-
-    val streams = """
-        {
-          "id": "mi.plugin.streams",
-          "version": "1.0.0",
-          "name": "Mi plugin",
-          "description": "Sustituye transportUrl por la base de tu addon (manifest en crudo).",
-          "types": ["movie", "series"],
-          "resources": [
-            {"name": "stream", "types": ["movie", "series"], "idPrefixes": ["tt"]}
-          ],
-          "idPrefixes": ["tt"],
-          "transportUrl": "https://mi-servidor.example/manifest.json"
-        }
-    """.trimIndent()
 }

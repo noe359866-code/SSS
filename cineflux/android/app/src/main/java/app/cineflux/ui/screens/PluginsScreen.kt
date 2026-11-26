@@ -52,7 +52,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cineflux.AppGraph
 import app.cineflux.core.Messages
 import app.cineflux.core.Plugin
-import app.cineflux.data.PluginExamples
 import app.cineflux.ui.Chip
 import app.cineflux.ui.EmptyState
 import app.cineflux.ui.Field
@@ -71,7 +70,6 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     var input by remember { mutableStateOf("") }
-    var baseUrl by remember { mutableStateOf("") }
     var installing by remember { mutableStateOf(false) }
     var installMessage by remember { mutableStateOf("") }
     var installOk by remember { mutableStateOf(false) }
@@ -105,25 +103,16 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Pega la URL del manifest o el JSON en crudo. Si el manifest no trae transportUrl, indícalo abajo.",
+                        "Pega el enlace del plugin. Cineflux lo valida y lo añade a tu lista.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(12.dp))
                     Field(
-                        label = "Manifest (URL o JSON)",
+                        label = "Enlace del plugin",
                         value = input,
                         onChange = { input = it },
-                        placeholder = "https://mi-addon.example/manifest.json",
-                        singleLine = false,
-                        minLines = 5
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Field(
-                        label = "URL base (opcional)",
-                        value = baseUrl,
-                        onChange = { baseUrl = it },
-                        placeholder = "https://mi-addon.example",
-                        helper = "Solo para manifests en crudo que no incluyan transportUrl."
+                        placeholder = "https://…",
+                        helper = "Se comprobará antes de instalarlo."
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -132,12 +121,11 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
                                 scope.launch {
                                     installing = true
                                     installMessage = ""
-                                    val result = graph.plugins.install(input, baseUrl)
+                                    val result = graph.plugins.install(input, "")
                                     installOk = result.ok
                                     installMessage = if (result.ok) result.message else result.message.ifBlank { Messages.manifest }
                                     if (result.ok) {
                                         input = ""
-                                        baseUrl = ""
                                     }
                                     installing = false
                                 }
@@ -155,12 +143,6 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
                                 Spacer(Modifier.width(8.dp))
                             }
                             Text("Instalar")
-                        }
-                        TextButton(onClick = { input = PluginExamples.streams; baseUrl = "" }) {
-                            Text("Ejemplo: streams", color = Muted, fontSize = 12.sp)
-                        }
-                        TextButton(onClick = { input = PluginExamples.catalog; baseUrl = "" }) {
-                            Text("Ejemplo: catálogo", color = Muted, fontSize = 12.sp)
                         }
                     }
                     if (installMessage.isNotBlank()) {
@@ -183,12 +165,12 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
                         .background(PanelHigh)
                         .padding(14.dp)
                 ) {
-                    Text("Cómo se usa un manifest", style = MaterialTheme.typography.titleMedium)
+                    Text("Cómo funcionan los plugins", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "El manifest declara recursos (stream, catalog, meta, subtitles). Cineflux pide los streams " +
-                            "a todos los plugins activos a la vez, los ordena con el perfil activo y reproduce el " +
-                            "primero que funcione. Si una opción falla, prueba la siguiente sin preguntarte nada.",
+                        "Cineflux consulta todos los plugins activos a la vez, ordena las opciones con el perfil " +
+                            "activo y reproduce la primera que funcione. Si una opción falla, prueba la siguiente " +
+                            "sin preguntarte nada.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -198,8 +180,8 @@ fun PluginsScreen(graph: AppGraph, onBack: () -> Unit) {
                 item {
                     EmptyState(
                         title = "Todavía no hay plugins",
-                        message = "Instala un plugin de streams para poder reproducir. Los plugins de catálogo añaden " +
-                            "filas extra a la app."
+                        message = "Solo necesitas un plugin de reproducción. Las fuentes de catálogo se añaden " +
+                            "en Ajustes → Catálogo."
                     )
                 }
             } else {
@@ -295,7 +277,7 @@ private fun PluginCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    if (plugin.streams) "Streams" else "Catálogo",
+                    "Reproducción",
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -316,36 +298,10 @@ private fun PluginCard(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            plugin.manifest.resources.take(4).forEach { resource ->
-                Text(
-                    resource.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Muted,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(PanelHigh)
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                )
-            }
-            if (plugin.manifest.types.isNotEmpty()) {
-                Text(
-                    plugin.manifest.types.joinToString(" · "),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Muted,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(PanelHigh)
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                )
-            }
-        }
-
         if (plugin.manifest.baseUrl.isBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Falta la URL de transporte: este plugin no puede pedir streams.",
+                "Este plugin no está disponible.",
                 style = MaterialTheme.typography.labelMedium,
                 color = Golden
             )

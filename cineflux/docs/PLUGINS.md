@@ -1,7 +1,7 @@
 # Plugins y manifests
 
 Cineflux **no scrapea**. Solo habla con plugins descritos por un manifest JSON.
-Puedes instalarlos por URL o pegando el JSON en crudo con su `transportUrl`.
+Se instalan por URL; la app descarga y valida el manifest por ti.
 
 ## Manifest mínimo
 
@@ -46,14 +46,13 @@ CAM, HEVC y torrent del texto y de las pistas.
 ## Instalación
 
 1. *Ajustes → Plugins*.
-2. Pega la URL del manifest o el JSON completo.
-3. Si el manifest no trae `transportUrl`, escribe la base en el campo inferior.
-4. Pulsa **Instalar**; verás advertencias si falta algún recurso.
-5. Ordena con las flechas: la prioridad afecta al ranking (−4 puntos por puesto).
+2. Pega el enlace del plugin (`https://…/manifest.json`).
+3. Pulsa **Instalar**; la app valida el manifest antes de añadirlo.
+4. Ordena con las flechas: la prioridad afecta al ranking (−4 puntos por puesto).
 
-Los plugins de catálogo añaden filas al inicio; los de stream habilitan la
-reproducción. Puedes **probar** cada uno (pide su manifest) y **actualizar** si el
-autor cambió la URL.
+Solo se aceptan plugins que aporten reproducción. Los addons que únicamente
+traen catálogo se añaden como **fuente** en *Ajustes → Catálogo*, no aquí. Puedes
+**probar** cada plugin y **actualizar** si el autor cambió la URL.
 
 ## Buenas prácticas
 
@@ -68,7 +67,8 @@ autor cambió la URL.
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
-| "Ese manifest no es válido o está incompleto" | JSON roto o sin `transportUrl` | Revisa comas/llaves y el campo base |
+| "Ese enlace no es válido o está incompleto" | Manifest roto o sin `transportUrl` | Revisa el enlace con el autor del plugin |
+| El plugin no se instala | Solo aporta catálogo | Añádelo en *Ajustes → Catálogo* |
 | El plugin aparece pero no reproduce | Sin recurso `stream` o prefijos incorrectos | Añade `{"name":"stream",…}` |
 | Siempre gana otro plugin | Prioridad baja | Súbelo con la flecha |
 | La app pide configurar catálogos | No hay fuentes | *Ajustes → Catálogo* |

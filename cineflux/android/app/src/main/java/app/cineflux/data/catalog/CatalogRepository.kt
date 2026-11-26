@@ -222,7 +222,7 @@ class CatalogRepository(
         if (items.isEmpty()) return null
         return HomeRow(
             title = prettyRowName(row),
-            subtitle = prettyAddon(row.addonId, row.addonName),
+            subtitle = "",
             badge = "",
             items = items
         )
@@ -336,13 +336,6 @@ class CatalogRepository(
     private fun upscale(url: String): String =
         url.replace("/poster/small/", "/poster/medium/")
             .replace("/background/small/", "/background/medium/")
-
-    private fun prettyAddon(id: String, name: String): String = when {
-        id.contains("nuvio", true) -> "Nuvio"
-        id.contains("cinemeta", true) -> "Cinemeta"
-        name.isNotBlank() -> name
-        else -> "Catálogo"
-    }
 
     private fun parseRuntime(value: String): Int {
         val text = value.lowercase()

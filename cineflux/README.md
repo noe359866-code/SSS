@@ -2,7 +2,7 @@
 
 Cliente móvil **nativo** de catálogo y reproducción con una interfaz inspirada en
 **Apple TV + Netflix**. No incluye scrapers: toda la reproducción llega de
-**plugins con manifest** (JSON pegado o por URL), el catálogo sale de addons
+**plugins por URL**, el catálogo sale de fuentes de catálogo
 como **Nuvio** y **Cinemeta**, las notas de **Rotten Tomatoes** llegan por OMDb y
 los saltos de intro, recap y créditos de **TheIntroDB, IntroDB, AnimeSkip y AniSkip**.
 
@@ -95,8 +95,8 @@ El proyecto enlaza el paquete local `../core` (producto `CinefluxCore`) y pide
    RT y, si tu red la bloquea, puedes configurar un proxy en *Ajustes → Red*.
 3. **Saltos**: *Ajustes → Saltos*. Botón visible por defecto; los automatismos
    de intro/recap/créditos se activan por separado. Anime Skip acepta un client ID.
-4. **Plugins**: *Ajustes → Plugins*. Pega la URL de un manifest o el JSON en crudo
-   (con `transportUrl`). Puedes probar cada plugin y ordenar su prioridad.
+4. **Plugins**: *Ajustes → Plugins*. Pega el enlace del plugin. Puedes probarlo
+   y ordenar su prioridad; los plugins de catálogo no se instalan aquí.
 5. **Perfiles**: *Ajustes → Perfiles*. Elige idioma, calidad y preferencias. El
    perfil activo se ve en la cabecera y en el reproductor.
 

@@ -63,7 +63,7 @@ struct DetailView: View {
                 if !detail.similar.isEmpty {
                     MediaRowView(row: HomeRow(
                         title: "Títulos parecidos",
-                        subtitle: "Según el catálogo",
+                        subtitle: "",
                         items: detail.similar
                     ))
                     .padding(.top, 12)

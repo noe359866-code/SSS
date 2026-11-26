@@ -335,7 +335,7 @@ final class CatalogRepository {
         guard !items.isEmpty else { return nil }
         return HomeRow(
             title: prettyRowName(row),
-            subtitle: prettyAddon(row.addonId, row.addonName),
+            subtitle: "",
             badge: "",
             items: items
         )
@@ -453,12 +453,6 @@ final class CatalogRepository {
     private func upscale(_ url: String) -> String {
         url.replacingOccurrences(of: "/poster/small/", with: "/poster/medium/")
             .replacingOccurrences(of: "/background/small/", with: "/background/medium/")
-    }
-
-    private func prettyAddon(_ id: String, _ name: String) -> String {
-        if id.lowercased().contains("nuvio") { return "Nuvio" }
-        if id.lowercased().contains("cinemeta") { return "Cinemeta" }
-        return name.isEmpty ? "Catálogo" : name
     }
 
     private func parseRuntime(_ value: String) -> Int {

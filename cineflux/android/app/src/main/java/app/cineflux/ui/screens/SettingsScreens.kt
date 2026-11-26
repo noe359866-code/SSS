@@ -122,11 +122,11 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit, onNavigate: (String) -> 
             SettingsCard {
                 Text("Catálogo", style = MaterialTheme.typography.titleMedium, color = Muted)
                 ValueRow(
-                    "Catálogos",
+                    "Fuentes de catálogo",
                     when (settings.catalogSources.size) {
-                        0 -> "Sin fuentes · añade un manifest"
+                        0 -> "Sin fuentes · añade una fuente"
                         1 -> "1 fuente de catálogo"
-                        else -> "${settings.catalogSources.size} fuentes · Nuvio + Cinemeta"
+                        else -> "${settings.catalogSources.size} fuentes de catálogo"
                     },
                     onClick = { onNavigate("settings/catalog") }
                 )
@@ -152,8 +152,8 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit, onNavigate: (String) -> 
             }
 
             Text(
-                "Cineflux no incluye scrapers ni aloja contenido. Los plugins que instales son manifests " +
-                    "que aportan catálogos y streams, igual que en un cliente de addons.",
+                "Cineflux no incluye scrapers ni aloja contenido. Los plugins que instales solo " +
+                    "añaden fuentes de reproducción.",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp)
             )
@@ -169,14 +169,14 @@ fun CatalogSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     var message by remember { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize()) {
-        SettingsHeader("Catálogo", "Nuvio · Cinemeta y tus manifests", onBack)
+        SettingsHeader("Catálogo", "Tus fuentes de catálogo", onBack)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 28.dp)) {
             SettingsCard {
                 Text("Fuentes de catálogo", style = MaterialTheme.typography.titleMedium, color = Muted)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Cineflux pide las filas y las fichas a estos manifests, igual que un cliente " +
-                        "de addons. Por defecto: Nuvio (TMDB) y Cinemeta. Sin fuentes no hay títulos.",
+                    "De aquí salen las filas y las fichas de la app. Puedes añadir una fuente " +
+                        "o restaurar las oficiales. Sin fuentes no hay títulos.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Muted
                 )
@@ -192,12 +192,12 @@ fun CatalogSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                hostOf(url),
+                                "Fuente ${index + 1}",
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1
                             )
                             Text(
-                                url,
+                                if (index == 0) "Catálogo principal" else "Catálogo adicional",
                                 style = MaterialTheme.typography.labelMedium,
                                 maxLines = 1
                             )
@@ -214,11 +214,11 @@ fun CatalogSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Field(
-                    label = "Añadir manifest",
+                    label = "Añadir fuente",
                     value = newSource,
                     onChange = { newSource = it },
-                    placeholder = "https://…/manifest.json",
-                    helper = "Cualquier addon con recurso «catalog». Se validará al recargar."
+                    placeholder = "Dirección de la fuente",
+                    helper = "Se validará al recargar el catálogo."
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,7 +243,7 @@ fun CatalogSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                         graph.settings.update { it.copy(catalogSources = DEFAULT_CATALOG_SOURCES) }
                         message = "Fuentes oficiales restauradas."
                     }) {
-                        Text("Restaurar Nuvio + Cinemeta", color = Muted)
+                        Text("Restaurar catálogo oficial", color = Muted)
                     }
                 }
                 if (message.isNotBlank()) {
@@ -316,15 +316,6 @@ fun CatalogSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     }
 }
 
-private fun hostOf(url: String): String {
-    val host = url.substringAfter("//").substringBefore("/")
-    return when {
-        host.contains("nuvio", true) -> "Nuvio · $host"
-        host.contains("cinemeta", true) -> "Cinemeta · $host"
-        else -> host.ifBlank { "Catálogo" }
-    }
-}
-
 @Composable
 fun NetworkSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
     val settings by graph.settings.state.collectAsStateWithLifecycle()
@@ -339,7 +330,7 @@ fun NetworkSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                     value = settings.proxyTemplate,
                     onChange = { value -> graph.settings.update { it.copy(proxyTemplate = value.trim()) } },
                     placeholder = "https://tu-proxy.example/?url={url}",
-                    helper = "Solo se usa si la petición directa falla. Debe incluir {url}. No hace falta para Nuvio ni Cinemeta."
+                    helper = "Solo se usa si la petición directa falla. Debe incluir {url}."
                 )
                 Spacer(Modifier.height(12.dp))
                 Field(
@@ -375,7 +366,7 @@ fun NetworkSettingsScreen(graph: AppGraph, onBack: () -> Unit) {
 
             Text(
                 "Consejo: en el móvil casi todo funciona sin proxy. Si un plugin concreto no responde, " +
-                    "prueba a actualizar su manifest o ponlo por debajo de otro más rápido en la lista de plugins.",
+                    "prueba a actualizar el plugin o ponlo por debajo de otro más rápido en la lista.",
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp)
             )
@@ -467,7 +458,7 @@ fun AboutScreen(graph: AppGraph, onBack: () -> Unit) {
             SettingsCard {
                 Text("Cineflux", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Cliente de catálogo y reproducción con plugins de manifest. " +
+                    "Cliente de catálogo y reproducción con plugins. " +
                         "Nada de scrapers dentro de la app.",
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -476,7 +467,7 @@ fun AboutScreen(graph: AppGraph, onBack: () -> Unit) {
                 Text("Android: Kotlin + Jetpack Compose + Media3", style = MaterialTheme.typography.labelMedium)
                 Text("iOS: Swift + SwiftUI + AVPlayer", style = MaterialTheme.typography.labelMedium)
                 Text(
-                    "Catálogo: Nuvio y Cinemeta · Rotten Tomatoes",
+                    "Catálogo y puntuaciones de Rotten Tomatoes",
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -485,9 +476,9 @@ fun AboutScreen(graph: AppGraph, onBack: () -> Unit) {
                 Text("Cómo funcionan los plugins", style = MaterialTheme.typography.titleMedium, color = Muted)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Cada plugin declara un manifest (JSON) con sus recursos: stream, catálogo, metadatos o " +
-                        "subtítulos. La app lo valida, deduce los identificadores IMDb/TMDB y le pide streams. " +
-                        "Puedes instalarlo desde su URL o pegando el manifest en crudo con su transportUrl.",
+                    "Cada plugin aporta fuentes de reproducción para películas y series. La app lo valida, " +
+                        "deduce los identificadores IMDb/TMDB y le pide opciones. Los plugins se instalan " +
+                        "desde su enlace.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(8.dp))

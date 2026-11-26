@@ -50,7 +50,7 @@ struct SettingsView: View {
                     CatalogSettingsView()
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Catálogos")
+                        Text("Fuentes de catálogo")
                         Text(catalogStatus)
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.muted)
@@ -71,7 +71,7 @@ struct SettingsView: View {
             }
 
             Section {
-                Text("Cineflux no incluye scrapers ni aloja contenido. Los plugins que instales son manifests que aportan catálogos y streams.")
+                Text("Cineflux no incluye scrapers ni aloja contenido. Los plugins que instales solo añaden fuentes de reproducción.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.muted)
             }
@@ -84,7 +84,7 @@ struct SettingsView: View {
 
     private var catalogStatus: String {
         let count = settings.value.catalogSources.count
-        let sources = count == 0 ? "Sin fuentes" : "\(count) fuentes · Nuvio + Cinemeta"
+        let sources = count == 0 ? "Sin fuentes" : "\(count) fuentes de catálogo"
         let rt = settings.value.hasOmdb ? "OMDb conectado" : "OMDb opcional"
         return "\(sources) · \(rt)"
     }
@@ -104,14 +104,15 @@ struct CatalogSettingsView: View {
     var body: some View {
         Form {
             Section("Fuentes de catálogo") {
-                Text("Las filas y las fichas salen de estos manifests, igual que en un cliente de addons. Por defecto: Nuvio (TMDB) y Cinemeta.")
+                Text("De aquí salen las filas y las fichas de la app. Puedes añadir una fuente o restaurar las oficiales. Sin fuentes no hay títulos.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.muted)
-                ForEach(settings.value.catalogSources, id: \.self) { url in
+                ForEach(Array(settings.value.catalogSources.indices), id: \.self) { index in
+                    let url = settings.value.catalogSources[index]
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(host(of: url)).font(.system(size: 13, weight: .semibold))
-                            Text(url)
+                            Text("Fuente \(index + 1)").font(.system(size: 13, weight: .semibold))
+                            Text(index == 0 ? "Catálogo principal" : "Catálogo adicional")
                                 .font(.system(size: 10))
                                 .foregroundStyle(Theme.muted)
                                 .lineLimit(1)
@@ -124,7 +125,7 @@ struct CatalogSettingsView: View {
                         .font(.system(size: 12))
                     }
                 }
-                TextField("https://…/manifest.json", text: $newSource)
+                TextField("Dirección de la fuente", text: $newSource)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -142,7 +143,7 @@ struct CatalogSettingsView: View {
                     newSource = ""
                     message = "Fuente añadida. Recarga el catálogo."
                 }
-                Button("Restaurar Nuvio + Cinemeta") {
+                Button("Restaurar catálogo oficial") {
                     settings.update { $0.catalogSources = CatalogDefaults.sources }
                     message = "Fuentes oficiales restauradas."
                 }
@@ -213,12 +214,6 @@ struct CatalogSettingsView: View {
         testing = false
     }
 
-    private func host(of url: String) -> String {
-        let host = url.components(separatedBy: "//").last?.components(separatedBy: "/").first ?? url
-        if host.lowercased().contains("nuvio") { return "Nuvio · \(host)" }
-        if host.lowercased().contains("cinemeta") { return "Cinemeta · \(host)" }
-        return host.isEmpty ? "Catálogo" : host
-    }
 }
 
 struct NetworkSettingsView: View {
@@ -234,7 +229,7 @@ struct NetworkSettingsView: View {
                 ))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                Text("Solo se usa si la petición directa falla. Debe incluir {url}. No hace falta para Nuvio ni Cinemeta.")
+                Text("Solo se usa si la petición directa falla. Debe incluir {url}.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.muted)
                 TextField("User-Agent", text: Binding(
@@ -257,7 +252,7 @@ struct NetworkSettingsView: View {
             }
 
             Section {
-                Text("En el móvil casi todo funciona sin proxy. Si un plugin concreto no responde, actualiza su manifest o ponlo por debajo de otro más rápido en la lista de plugins.")
+                Text("En el móvil casi todo funciona sin proxy. Si un plugin concreto no responde, actualiza el plugin o ponlo por debajo de otro más rápido en la lista de plugins.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.muted)
             }
@@ -361,7 +356,7 @@ struct AboutView: View {
                 SettingsCard {
                     Text("Cineflux")
                         .font(.system(size: 20, weight: .black))
-                    Text("Cliente de catálogo y reproducción con plugins de manifest. Nada de scrapers dentro de la app.")
+                    Text("Cliente de catálogo y reproducción con plugins. Nada de scrapers dentro de la app.")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                     Text("Núcleo compartido: \(NativeCore.version()) (C++17)")
@@ -373,7 +368,7 @@ struct AboutView: View {
                     Text("Android: Kotlin + Jetpack Compose + Media3")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.muted)
-                    Text("Catálogo: Nuvio y Cinemeta · Rotten Tomatoes")
+                    Text("Catálogo y puntuaciones de Rotten Tomatoes")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.muted)
                 }
@@ -381,7 +376,7 @@ struct AboutView: View {
                 SettingsCard {
                     Text("Cómo funcionan los plugins")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Cada plugin declara un manifest (JSON) con sus recursos: stream, catálogo, metadatos o subtítulos. La app lo valida, deduce los identificadores IMDb/TMDB y le pide streams. Puedes instalarlo desde su URL o pegando el manifest en crudo con su transportUrl.")
+                    Text("Cada plugin aporta fuentes de reproducción para películas y series. La app lo valida, deduce los identificadores IMDb/TMDB y le pide opciones. Los plugins se instalan desde su enlace.")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                     Text("Los perfiles deciden qué stream se reproduce: idioma, calidad, HDR, tamaño y prioridad de plugins. El reproductor prueba la mejor opción y, si falla, cambia a la siguiente sin mostrar errores de fuentes.")

@@ -34,7 +34,7 @@ data class MediaItem(
             originalLanguage.equals("ja", ignoreCase = true)
     val scoreLabel: String
         get() {
-            val value = if (tmdbRating > 0) tmdbRating else imdbRating
+            val value = if (imdbRating > 0) imdbRating else tmdbRating
             return if (value > 0) String.format(java.util.Locale.US, "%.1f", value) else ""
         }
 }

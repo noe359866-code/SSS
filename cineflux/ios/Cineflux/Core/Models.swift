@@ -7,10 +7,10 @@ enum Messages {
     static let noOptions = "No hay ninguna opción disponible ahora mismo para este perfil."
     static let playbackExhausted = "No encontramos una opción compatible. Prueba con otro perfil."
     static let network = "No hemos podido conectar con el servicio. Inténtalo de nuevo en un momento."
-    static let manifest = "Ese manifest no es válido o está incompleto."
+    static let manifest = "Ese enlace no es válido o está incompleto."
     static let generic = "Algo no ha salido como esperábamos. Inténtalo de nuevo."
     static let notFound = "No encontramos ese título."
-    static let needBaseUrl = "Añade la URL del plugin o un campo transportUrl dentro del manifest."
+    static let needBaseUrl = "Añade el enlace del plugin."
     static let catalog = "No hemos podido cargar el catálogo. Revisa tus fuentes en Ajustes."
 
     /// Elimina cualquier código técnico de un texto mostrable.
@@ -337,7 +337,7 @@ struct MediaItem: Codable, Hashable, Identifiable {
     var imdbRating: Double = 0
 
     var scoreLabel: String {
-        let value = tmdbRating > 0 ? tmdbRating : imdbRating
+        let value = imdbRating > 0 ? imdbRating : tmdbRating
         return value > 0 ? String(format: "%.1f", value) : ""
     }
 

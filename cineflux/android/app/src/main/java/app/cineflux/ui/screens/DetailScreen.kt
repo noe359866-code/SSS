@@ -278,7 +278,7 @@ fun DetailScreen(
                             MediaRow(
                                 row = app.cineflux.data.catalog.HomeRow(
                                     title = "Títulos parecidos",
-                                    subtitle = "Según el catálogo",
+                                    subtitle = "",
                                     items = data.similar
                                 ),
                                 onItemClick = onItem

@@ -111,10 +111,10 @@ struct HomeView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Nuvio + Cinemeta · TheIntroDB · IntroDB · AnimeSkip")
+                        Text("Catálogo actualizado · Saltos de intro y créditos")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Theme.muted)
-                        Text("Cineflux no incluye scrapers. Cada plugin es un manifest que tú instalas.")
+                        Text("Cineflux no incluye scrapers. Cada plugin lo instalas tú.")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Theme.muted.opacity(0.7))
                     }
@@ -132,7 +132,7 @@ struct HomeView: View {
             Text("Sin plugins de reproducción")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(Theme.text)
-            Text("Pega el manifest de un plugin (o su URL) y el reproductor empezará a resolver streams por ti.")
+            Text("Instala un plugin con su enlace y el reproductor empezará a resolver opciones por ti.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
             NavigationLink {
@@ -179,7 +179,7 @@ struct SetupHomeView: View {
                     .foregroundStyle(Theme.text)
                     .padding(.top, 34)
 
-                Text("Conecta tus catálogos (Nuvio, Cinemeta o cualquier manifest) y añade un plugin de reproducción. El reproductor elegirá la mejor opción por ti y saltará intros y créditos.")
+                Text("Añade tus fuentes de catálogo y un plugin de reproducción. El reproductor elegirá la mejor opción por ti y saltará intros y créditos.")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.muted)
                     .padding(.top, 14)
@@ -213,7 +213,7 @@ struct SetupHomeView: View {
                 .padding(.top, 10)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    SetupFeature(title: "Catálogo real", subtitle: "Nuvio y Cinemeta aportan tendencias, populares y fichas completas.")
+                    SetupFeature(title: "Catálogo real", subtitle: "Tendencias, populares y fichas completas, sin demos.")
                     SetupFeature(title: "Reproducción automática", subtitle: "Sin listas de webs ni fuentes: un perfil decide todo.")
                     SetupFeature(title: "Saltos inteligentes", subtitle: "TheIntroDB, IntroDB y AnimeSkip detectan intro, recap y créditos.")
                 }
@@ -279,7 +279,7 @@ struct BrowseView: View {
                     Text(type == "series" ? "Series" : "Películas")
                         .font(.system(size: 34, weight: .black))
                         .foregroundStyle(Theme.text)
-                    Text("Nuvio + Cinemeta · puntuaciones de IMDb y RT")
+                    Text("Puntuaciones de IMDb y Rotten Tomatoes")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                 }

@@ -62,7 +62,7 @@ final class PluginStore: ObservableObject {
         self.settings = settings
         self.http = http
         if let data = settings.raw(key), let decoded = try? JSONDecoder().decode([Plugin].self, from: data) {
-            plugins = decoded.sorted { $0.priority < $1.priority }
+            plugins = decoded.filter { $0.canStream }.sorted { $0.priority < $1.priority }
         }
     }
 
@@ -96,7 +96,7 @@ final class PluginStore: ObservableObject {
     }
 
     func replaceAll(_ list: [Plugin]) {
-        plugins = list.sorted { $0.priority < $1.priority }.enumerated().map { offset, element in
+        plugins = list.filter { $0.canStream }.sorted { $0.priority < $1.priority }.enumerated().map { offset, element in
             var copy = element
             copy.priority = offset
             return copy
@@ -109,6 +109,7 @@ final class PluginStore: ObservableObject {
         guard !trimmed.isEmpty else { return (false, Messages.needBaseUrl) }
 
         let isURL = trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://")
+        guard isURL else { return (false, Messages.needBaseUrl) }
         var envelope: ManifestEnvelope?
         if isURL {
             guard let body = try? await http.text(trimmed, settings: settings.value) else {
@@ -125,6 +126,9 @@ final class PluginStore: ObservableObject {
         }
         guard !manifest.baseUrl.isEmpty else { return (false, Messages.needBaseUrl) }
         guard !manifest.resources.isEmpty else { return (false, Messages.manifest) }
+        guard manifest.capabilities.streams else {
+            return (false, "Ese plugin solo aporta catálogo. Añádelo como fuente en Ajustes → Catálogo.")
+        }
         manifest.manifestUrl = manifest.manifestUrl.isEmpty
             ? manifest.baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/manifest.json"
             : manifest.manifestUrl
@@ -144,7 +148,7 @@ final class PluginStore: ObservableObject {
         plugins.append(plugin)
         plugins.sort { $0.priority < $1.priority }
         persist()
-        return (true, "\(manifest.name) instalado · \(manifest.resourceNames.joined(separator: ", "))")
+        return (true, "\(manifest.name) instalado.")
     }
 
     func refresh(_ plugin: Plugin) async -> (Bool, String) {

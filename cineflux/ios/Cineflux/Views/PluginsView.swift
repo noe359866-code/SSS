@@ -4,7 +4,6 @@ struct PluginsView: View {
     @EnvironmentObject private var plugins: PluginStore
 
     @State private var input = ""
-    @State private var baseURL = ""
     @State private var installing = false
     @State private var message = ""
     @State private var success = false
@@ -20,7 +19,7 @@ struct PluginsView: View {
                 if plugins.plugins.isEmpty {
                     EmptyStateView(
                         title: "Todavía no hay plugins",
-                        message: "Instala un plugin de streams para poder reproducir. Los plugins de catálogo añaden filas extra a la app."
+                        message: "Solo necesitas un plugin de reproducción. Las fuentes de catálogo se añaden en Ajustes → Catálogo."
                     )
                 } else {
                     Text("Instalados")
@@ -64,38 +63,20 @@ struct PluginsView: View {
                 Text("Añadir plugin")
                     .font(.system(size: 16, weight: .bold))
             }
-            Text("Pega la URL del manifest o el JSON en crudo. Si el manifest no trae transportUrl, indícalo abajo.")
+            Text("Pega el enlace del plugin. Cineflux lo valida y lo añade a tu lista.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
 
-            TextEditor(text: $input)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(height: 120)
-                .padding(6)
-                .background(Theme.panelHigh)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .scrollContentBackground(.hidden)
-                .foregroundStyle(Theme.text)
-                .overlay(alignment: .topLeading) {
-                    if input.isEmpty {
-                        Text("https://mi-addon.example/manifest.json")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(Theme.muted)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 14)
-                            .allowsHitTesting(false)
-                    }
-                }
-
-            TextField("URL base (opcional)", text: $baseURL)
+            TextField("https://…", text: $input)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .keyboardType(.URL)
                 .padding(10)
                 .background(Theme.panelHigh)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .foregroundStyle(Theme.text)
 
-            Text("Solo para manifests en crudo que no incluyan transportUrl.")
+            Text("Se comprobará antes de instalarlo.")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.muted)
 
@@ -110,19 +91,6 @@ struct PluginsView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || installing)
-
-                Menu("Ejemplos") {
-                    Button("Ejemplo: streams") {
-                        input = PluginExamples.streams
-                        baseURL = ""
-                    }
-                    Button("Ejemplo: catálogo") {
-                        input = PluginExamples.catalog
-                        baseURL = ""
-                    }
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.rose)
             }
 
             if !message.isEmpty {
@@ -135,10 +103,10 @@ struct PluginsView: View {
 
     private var howCard: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Cómo se usa un manifest")
+            Text("Cómo funcionan los plugins")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Theme.text)
-            Text("El manifest declara recursos (stream, catalog, meta, subtitles). Cineflux pide los streams a todos los plugins activos a la vez, los ordena con el perfil activo y reproduce el primero que funcione. Si una opción falla, prueba la siguiente sin preguntarte nada.")
+            Text("Cineflux consulta todos los plugins activos a la vez, ordena las opciones con el perfil activo y reproduce la primera que funcione. Si una opción falla, prueba la siguiente sin preguntarte nada.")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.muted)
         }
@@ -164,7 +132,7 @@ struct PluginsView: View {
                     Text(plugin.manifest.name.isEmpty ? "Plugin" : plugin.manifest.name)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Theme.text)
-                    Text(plugin.canStream ? "Streams" : "Catálogo")
+                    Text("Reproducción")
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.muted)
                 }
@@ -184,17 +152,8 @@ struct PluginsView: View {
                     .lineLimit(2)
             }
 
-            HStack(spacing: 6) {
-                ForEach(plugin.manifest.resourceNames.prefix(4), id: \.self) { name in
-                    Badge(text: name, foreground: Theme.muted, background: Theme.panelHigh)
-                }
-                if !plugin.manifest.types.isEmpty {
-                    Badge(text: plugin.manifest.types.joined(separator: " · "), foreground: Theme.muted, background: Theme.panelHigh)
-                }
-            }
-
             if plugin.manifest.baseUrl.isEmpty {
-                Text("Falta la URL de transporte: este plugin no puede pedir streams.")
+                Text("Este plugin no está disponible.")
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.golden)
             }
@@ -257,47 +216,12 @@ struct PluginsView: View {
     private func install() async {
         installing = true
         message = ""
-        let result = await plugins.install(input: input, baseURL: baseURL)
+        let result = await plugins.install(input: input, baseURL: "")
         success = result.0
         message = result.1
         if result.0 {
             input = ""
-            baseURL = ""
         }
         installing = false
     }
-}
-
-enum PluginExamples {
-    static let catalog = """
-    {
-      "id": "com.linvo.cinemeta",
-      "version": "3.0.0",
-      "name": "Cinemeta",
-      "description": "Catálogo y metadatos de películas y series.",
-      "types": ["movie", "series"],
-      "resources": ["catalog", "meta"],
-      "catalogs": [
-        {"type": "movie", "id": "top", "name": "Películas mejor valoradas"},
-        {"type": "series", "id": "top", "name": "Series mejor valoradas"}
-      ],
-      "idPrefixes": ["tt"],
-      "transportUrl": "https://v3-cinemeta.strem.io/manifest.json"
-    }
-    """
-
-    static let streams = """
-    {
-      "id": "mi.plugin.streams",
-      "version": "1.0.0",
-      "name": "Mi plugin",
-      "description": "Sustituye transportUrl por la base de tu addon (manifest en crudo).",
-      "types": ["movie", "series"],
-      "resources": [
-        {"name": "stream", "types": ["movie", "series"], "idPrefixes": ["tt"]}
-      ],
-      "idPrefixes": ["tt"],
-      "transportUrl": "https://mi-servidor.example/manifest.json"
-    }
-    """
 }

@@ -101,14 +101,15 @@ Pega un manifest con recurso `catalog`. Requisitos mínimos:
 ```
 
 El planificador usará sus filas en el siguiente refresco. Si el manifest no
-declara `catalog`, el núcleo lo infiere a partir de `catalogs` y avisa en
-`warnings` al instalarlo como plugin.
+declara `catalog`, el núcleo lo infiere a partir de `catalogs`. Las fuentes se
+gestionan solo en *Ajustes → Catálogo*; la interfaz no muestra ni la URL ni el
+nombre del proveedor.
 
 ## Problemas frecuentes
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| Portada vacía | Sin fuentes o manifests caídos | *Ajustes → Catálogo* → Restaurar Nuvio + Cinemeta |
+| Portada vacía | Sin fuentes o manifests caídos | *Ajustes → Catálogo* → Restaurar catálogo oficial |
 | Faltan filas | Catálogos con extras obligatorios | Es intencionado: se evitan filas sin contexto |
 | Una fila repite títulos | Dos addons con el mismo contenido | Quita una fuente o reduce filas |
 | Carátulas lentas | `image.tmdb.org` / `metahub` | Se cachean en disco por el sistema de imágenes |

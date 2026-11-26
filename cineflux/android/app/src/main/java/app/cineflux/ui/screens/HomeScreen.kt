@@ -174,11 +174,11 @@ fun HomeScreen(
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp)) {
                     Text(
-                        "Nuvio + Cinemeta · TheIntroDB · IntroDB · AnimeSkip",
+                        "Catálogo actualizado · Saltos de intro y créditos",
                         style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                     )
                     Text(
-                        "Cineflux no incluye scrapers. Cada plugin es un manifest que tú instalas.",
+                        "Cineflux no incluye scrapers. Cada plugin lo instalas tú.",
                         style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                         color = Muted.copy(alpha = 0.7f)
                     )
@@ -212,9 +212,8 @@ private fun SetupHome(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
             )
             Spacer(Modifier.height(14.dp))
             Text(
-                "Conecta tus catálogos (Nuvio, Cinemeta o cualquier manifest) y añade un plugin " +
-                    "de reproducción. El reproductor elegirá la mejor opción por ti y saltará " +
-                    "intros y créditos.",
+                "Añade tus fuentes de catálogo y un plugin de reproducción. El reproductor " +
+                    "elegirá la mejor opción por ti y saltará intros y créditos.",
                 style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                 color = Muted
             )
@@ -244,7 +243,7 @@ private fun SetupHome(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
                 Text("Instalar un plugin", color = Text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
             Spacer(Modifier.height(30.dp))
-            SetupFeature("Catálogo real", "Nuvio y Cinemeta aportan tendencias, populares y fichas completas.")
+            SetupFeature("Catálogo real", "Tendencias, populares y fichas completas, sin demos.")
             SetupFeature("Reproducción automática", "Sin listas de webs ni fuentes: un perfil decide todo.")
             SetupFeature("Saltos inteligentes", "TheIntroDB, IntroDB y AnimeSkip detectan intro, recap y créditos.")
             Spacer(Modifier.weight(1f))
@@ -288,7 +287,7 @@ private fun FirstPluginCard(onOpenPlugins: () -> Unit) {
         Text("Sin plugins de reproducción", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(6.dp))
         Text(
-            "Pega el manifest de un plugin (o su URL) y el reproductor empezará a resolver streams por ti.",
+            "Instala un plugin con su enlace y el reproductor empezará a resolver opciones por ti.",
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(12.dp))

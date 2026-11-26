@@ -18,11 +18,11 @@ object Messages {
     const val noOptions = "No hay ninguna opción disponible ahora mismo para este perfil."
     const val playbackExhausted = "No encontramos una opción compatible. Prueba con otro perfil."
     const val network = "No hemos podido conectar con el servicio. Inténtalo de nuevo en un momento."
-    const val manifest = "Ese manifest no es válido o está incompleto."
+    const val manifest = "Ese enlace no es válido o está incompleto."
     const val generic = "Algo no ha salido como esperábamos. Inténtalo de nuevo."
     const val notFound = "No encontramos ese título."
     const val catalog = "No hemos podido cargar el catálogo. Revisa tus fuentes en Ajustes."
-    const val needBaseUrl = "Añade la URL del plugin o un campo transportUrl dentro del manifest."
+    const val needBaseUrl = "Añade el enlace del plugin."
 
     /** Red de seguridad: elimina códigos y URLs de cualquier texto mostrable. */
     fun scrub(text: String): String {

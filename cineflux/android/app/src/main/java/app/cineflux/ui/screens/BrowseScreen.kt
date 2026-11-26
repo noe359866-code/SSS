@@ -78,7 +78,7 @@ fun BrowseScreen(
                     style = androidx.compose.material3.MaterialTheme.typography.displayLarge
                 )
                 Text(
-                    "Nuvio + Cinemeta · puntuaciones de IMDb y Rotten Tomatoes",
+                    "Puntuaciones de IMDb y Rotten Tomatoes",
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                 )
             }
