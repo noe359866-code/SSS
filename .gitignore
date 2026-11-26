@@ -3,3 +3,13 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 *.log
+
+# Cineflux · artefactos de compilación y proyectos generados
+cineflux/core/build/
+cineflux/android/.gradle/
+cineflux/android/.cxx/
+cineflux/android/local.properties
+cineflux/android/app/build/
+cineflux/ios/*.xcodeproj
+cineflux/ios/build/
+cineflux/ios/DerivedData/

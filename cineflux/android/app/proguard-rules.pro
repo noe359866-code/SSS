@@ -1,0 +1,1 @@
+-keepclassmembers class app.cineflux.core.** { *; }
