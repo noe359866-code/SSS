@@ -1,0 +1,4 @@
+module CinefluxCore {
+    header "capi.h"
+    export *
+}
