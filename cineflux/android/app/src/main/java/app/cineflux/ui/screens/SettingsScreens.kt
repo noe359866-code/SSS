@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -90,9 +91,13 @@ fun SettingsHeader(title: String, subtitle: String?, onBack: () -> Unit) {
 fun SettingsScreen(graph: AppGraph, onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val settings by graph.settings.state.collectAsStateWithLifecycle()
     val plugins by graph.plugins.plugins.collectAsStateWithLifecycle()
+    val jsPlugins by graph.plugins.jsPlugins.collectAsStateWithLifecycle()
     val profiles by graph.profiles.profiles.collectAsStateWithLifecycle()
     val selectedId by graph.profiles.selectedId.collectAsStateWithLifecycle()
     val active = profiles.firstOrNull { it.id == selectedId }
+
+    val totalPlugins = plugins.size + jsPlugins.size
+    val activePlugins = plugins.count { it.enabled } + jsPlugins.count { it.enabled }
 
     Column(Modifier.fillMaxSize()) {
         SettingsHeader("Ajustes", "Todo se guarda en este dispositivo", onBack)
@@ -113,9 +118,90 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit, onNavigate: (String) -> 
                 HorizontalDivider(color = Stroke, thickness = 0.5.dp)
                 ValueRow(
                     "Plugins",
-                    if (plugins.isEmpty()) "Sin plugins instalados"
-                    else "${plugins.size} instalados · ${plugins.count { it.enabled }} activos",
+                    if (totalPlugins == 0) "Sin plugins instalados"
+                    else "$totalPlugins instalados · $activePlugins activos (${jsPlugins.size} JS)",
                     onClick = { onNavigate("settings/plugins") }
+                )
+            }
+
+            SettingsCard {
+                Text("Reproductor y subtítulos", style = MaterialTheme.typography.titleMedium, color = Muted)
+                SettingsToggleRow(
+                    title = "Recordar posición",
+                    subtitle = "Reanuda películas y episodios donde los dejaste",
+                    checked = settings.rememberPosition,
+                    onCheckedChange = { v -> graph.settings.update { it.copy(rememberPosition = v) } }
+                )
+                HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                SettingsChoiceRow(
+                    title = "Velocidad por defecto",
+                    options = listOf(0.75f to "0.75×", 1.0f to "1×", 1.25f to "1.25×", 1.5f to "1.5×", 2.0f to "2×"),
+                    selected = settings.defaultPlaybackSpeed,
+                    onSelect = { v -> graph.settings.update { it.copy(defaultPlaybackSpeed = v) } }
+                )
+                HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                SettingsChoiceRow(
+                    title = "Salto rápido (adelantar / retroceder)",
+                    options = listOf(5 to "5 s", 10 to "10 s", 15 to "15 s", 30 to "30 s"),
+                    selected = settings.seekStepSeconds,
+                    onSelect = { v -> graph.settings.update { it.copy(seekStepSeconds = v) } }
+                )
+                HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                SettingsToggleRow(
+                    title = "Subtítulos automáticos",
+                    subtitle = "Activa subtítulos cuando estén disponibles",
+                    checked = settings.subtitlesEnabled,
+                    onCheckedChange = { v -> graph.settings.update { it.copy(subtitlesEnabled = v) } }
+                )
+                if (settings.subtitlesEnabled) {
+                    HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                    SettingsChoiceRow(
+                        title = "Idioma de subtítulos",
+                        options = listOf("es" to "Español", "en" to "Inglés", "pt" to "Portugués", "fr" to "Francés"),
+                        selected = settings.subtitleLanguage,
+                        onSelect = { v -> graph.settings.update { it.copy(subtitleLanguage = v) } }
+                    )
+                    HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                    SettingsChoiceRow(
+                        title = "Tamaño de subtítulos",
+                        options = listOf("small" to "Pequeño", "medium" to "Medio", "large" to "Grande"),
+                        selected = settings.subtitleSize,
+                        onSelect = { v -> graph.settings.update { it.copy(subtitleSize = v) } }
+                    )
+                }
+            }
+
+            SettingsCard {
+                Text("Interfaz y diseño", style = MaterialTheme.typography.titleMedium, color = Muted)
+                SettingsToggleRow(
+                    title = "Mostrar notas en carátulas",
+                    subtitle = "Insignias de IMDb y Rotten Tomatoes en los pósteres",
+                    checked = settings.showRatingsOnCards,
+                    onCheckedChange = { v -> graph.settings.update { it.copy(showRatingsOnCards = v) } }
+                )
+                HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                SettingsToggleRow(
+                    title = "Tarjetas compactas",
+                    subtitle = "Muestra más títulos por fila en el catálogo",
+                    checked = settings.compactCards,
+                    onCheckedChange = { v -> graph.settings.update { it.copy(compactCards = v) } }
+                )
+            }
+
+            SettingsCard {
+                Text("Rendimiento y red", style = MaterialTheme.typography.titleMedium, color = Muted)
+                SettingsChoiceRow(
+                    title = "Tiempo de espera por plugin",
+                    options = listOf(8 to "8 s", 12 to "12 s", 20 to "20 s", 30 to "30 s"),
+                    selected = settings.pluginTimeoutSec,
+                    onSelect = { v -> graph.settings.update { it.copy(pluginTimeoutSec = v) } }
+                )
+                HorizontalDivider(color = Stroke, thickness = 0.5.dp)
+                SettingsToggleRow(
+                    title = "Solo reproducir con Wi-Fi",
+                    subtitle = "Evita consumo de datos móviles al iniciar video",
+                    checked = settings.wifiOnlyStreaming,
+                    onCheckedChange = { v -> graph.settings.update { it.copy(wifiOnlyStreaming = v) } }
                 )
             }
 
@@ -595,5 +681,64 @@ private fun SkipToggle(
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Rose)
         )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = Muted)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Rose)
+        )
+    }
+}
+
+@Composable
+private fun <T> SettingsChoiceRow(
+    title: String,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            options.forEach { (value, label) ->
+                val active = value == selected
+                TextButton(
+                    onClick = { onSelect(value) },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (active) Rose else Panel)
+                ) {
+                    Text(
+                        label,
+                        color = if (active) Color.White else Muted,
+                        fontSize = 12.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }

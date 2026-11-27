@@ -65,4 +65,18 @@ Java_app_cineflux_core_NativeCore_skipSegments(JNIEnv* env, jobject /*thiz*/, js
   return to_java(env, cfx_skip_segments(from_java(env, request).c_str()));
 }
 
+JNIEXPORT jstring JNICALL
+Java_app_cineflux_core_NativeCore_parseJsRepo(JNIEnv* env, jobject /*thiz*/,
+                                              jstring repo_json, jstring base_url) {
+  return to_java(env, cfx_parse_js_repo(from_java(env, repo_json).c_str(),
+                                        from_java(env, base_url).c_str()));
+}
+
+JNIEXPORT jstring JNICALL
+Java_app_cineflux_core_NativeCore_normalizeJsStreams(JNIEnv* env, jobject /*thiz*/,
+                                                     jstring raw_json, jstring plugin_name) {
+  return to_java(env, cfx_normalize_js_streams(from_java(env, raw_json).c_str(),
+                                               from_java(env, plugin_name).c_str()));
+}
+
 }  // extern "C"

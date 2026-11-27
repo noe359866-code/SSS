@@ -53,10 +53,12 @@ final class SettingsStore: ObservableObject, @unchecked Sendable {
 @MainActor
 final class PluginStore: ObservableObject {
     @Published private(set) var plugins: [Plugin] = []
+    @Published private(set) var jsPlugins: [JsPlugin] = []
 
     private let settings: SettingsStore
     private let http: HTTPClient
     private let key = "cineflux.plugins.v1"
+    private let jsKey = "cineflux.js_plugins.v1"
 
     init(settings: SettingsStore, http: HTTPClient) {
         self.settings = settings
@@ -64,10 +66,18 @@ final class PluginStore: ObservableObject {
         if let data = settings.raw(key), let decoded = try? JSONDecoder().decode([Plugin].self, from: data) {
             plugins = decoded.filter { $0.canStream }.sorted { $0.priority < $1.priority }
         }
+        if let data = settings.raw(jsKey), let decoded = try? JSONDecoder().decode([JsPlugin].self, from: data) {
+            jsPlugins = decoded.sorted { $0.priority < $1.priority }
+        }
     }
 
     var streamPlugins: [Plugin] {
         plugins.filter { $0.enabled && $0.canStream && !$0.manifest.baseUrl.isEmpty }
+            .sorted { $0.priority < $1.priority }
+    }
+
+    var activeJsPlugins: [JsPlugin] {
+        jsPlugins.filter { $0.enabled && !$0.code.isEmpty }
             .sorted { $0.priority < $1.priority }
     }
 
@@ -110,15 +120,77 @@ final class PluginStore: ObservableObject {
 
         let isURL = trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://")
         guard isURL else { return (false, Messages.needBaseUrl) }
-        var envelope: ManifestEnvelope?
-        if isURL {
-            guard let body = try? await http.text(trimmed, settings: settings.value) else {
+
+        // 1. Enlace directo a un archivo .js
+        let lowerPath = trimmed.components(separatedBy: "?").first?.lowercased() ?? ""
+        if lowerPath.hasSuffix(".js") {
+            guard let code = try? await http.text(trimmed, settings: settings.value) else {
                 return (false, Messages.network)
             }
-            envelope = NativeCore.manifest(body, baseURL: baseURL.isEmpty ? trimmed : baseURL)
-        } else {
-            envelope = NativeCore.manifest(trimmed, baseURL: baseURL)
+            guard JsRuntime.shared.validate(code) else {
+                return (false, "Ese archivo JS no expone la función getStreams.")
+            }
+            let fileName = (URL(string: trimmed)?.deletingPathExtension().lastPathComponent) ?? "Plugin JS"
+            let name = fileName.isEmpty ? "Plugin JS" : fileName
+            let pKey = "js:\(trimmed)"
+            let existing = jsPlugins.first { $0.key == pKey }
+            let jsPlugin = JsPlugin(
+                key: pKey,
+                pluginId: name.lowercased(),
+                name: name,
+                scriptUrl: trimmed,
+                code: code,
+                enabled: existing?.enabled ?? true,
+                priority: existing?.priority ?? jsPlugins.count,
+                installedAt: existing?.installedAt ?? Date().timeIntervalSince1970
+            )
+            jsPlugins.removeAll { $0.key == pKey }
+            jsPlugins.append(jsPlugin)
+            persistJs()
+            return (true, "\(name) (JS) instalado.")
         }
+
+        guard let body = try? await http.text(trimmed, settings: settings.value) else {
+            return (false, Messages.network)
+        }
+
+        // 2. Repositorio de plugins JS estilo Nuvio
+        if let repo = NativeCore.jsRepo(body, baseURL: baseURL.isEmpty ? trimmed : baseURL),
+           repo.ok, !repo.plugins.isEmpty {
+            var count = 0
+            for entry in repo.plugins {
+                guard let code = try? await http.text(entry.scriptUrl, settings: settings.value),
+                      JsRuntime.shared.validate(code) else { continue }
+                let pKey = "js:\(entry.scriptUrl)"
+                let existing = jsPlugins.first { $0.key == pKey }
+                let jsPlugin = JsPlugin(
+                    key: pKey,
+                    pluginId: entry.id,
+                    name: entry.name,
+                    description: entry.description,
+                    version: entry.version,
+                    scriptUrl: entry.scriptUrl,
+                    repoUrl: trimmed,
+                    repoName: repo.name,
+                    code: code,
+                    types: entry.types,
+                    enabled: existing?.enabled ?? entry.enabledByDefault,
+                    priority: existing?.priority ?? jsPlugins.count,
+                    installedAt: existing?.installedAt ?? Date().timeIntervalSince1970
+                )
+                jsPlugins.removeAll { $0.key == pKey }
+                jsPlugins.append(jsPlugin)
+                count += 1
+            }
+            guard count > 0 else {
+                return (false, "No se pudo descargar ningún plugin JS válido del repositorio.")
+            }
+            persistJs()
+            return (true, "\(repo.name): \(count) plugin(s) JS instalados.")
+        }
+
+        // 3. Manifest estándar de addon (Stremio)
+        let envelope: ManifestEnvelope? = NativeCore.manifest(body, baseURL: baseURL.isEmpty ? trimmed : baseURL)
 
         guard let result = envelope, result.ok, var manifest = result.manifest else {
             let message = Messages.scrub(result?.message ?? Messages.manifest)
@@ -197,26 +269,35 @@ final class PluginStore: ObservableObject {
         profile: Profile
     ) async -> RankEnvelope {
         let active = streamPlugins
-        guard !active.isEmpty else {
-            return RankEnvelope(ok: false, message: Messages.noOptions)
-        }
-        let request = PlanRequest(
-            type: type,
-            imdbId: imdbId,
-            tmdbId: tmdbId,
-            season: season,
-            episode: episode,
-            addons: active.map { PlanRequest.PlanAddon(id: $0.key, manifest: $0.manifest, baseUrl: $0.manifest.baseUrl) }
-        )
-        guard let plan = NativeCore.plan(request), plan.ok, !plan.addons.isEmpty else {
+        let activeJs = activeJsPlugins.filter { $0.supportsType(type) }
+        guard !active.isEmpty || !activeJs.isEmpty else {
             return RankEnvelope(ok: false, message: Messages.noOptions)
         }
 
         var payloads: [AddonPayload] = []
         await withTaskGroup(of: AddonPayload?.self) { group in
-            for planned in plan.addons {
-                guard let plugin = active.first(where: { $0.key == planned.id }) else { continue }
-                group.addTask { await self.fetchPayload(planned: planned, plugin: plugin) }
+            if !active.isEmpty {
+                let request = PlanRequest(
+                    type: type,
+                    imdbId: imdbId,
+                    tmdbId: tmdbId,
+                    season: season,
+                    episode: episode,
+                    addons: active.map { PlanRequest.PlanAddon(id: $0.key, manifest: $0.manifest, baseUrl: $0.manifest.baseUrl) }
+                )
+                if let plan = NativeCore.plan(request), plan.ok {
+                    for planned in plan.addons {
+                        guard let plugin = active.first(where: { $0.key == planned.id }) else { continue }
+                        group.addTask { await self.fetchPayload(planned: planned, plugin: plugin) }
+                    }
+                }
+            }
+            let offset = active.count
+            let targetId = tmdbId.isEmpty ? imdbId : tmdbId
+            for jsPlugin in activeJs {
+                group.addTask {
+                    await self.runJsPayload(plugin: jsPlugin, id: targetId, type: type, season: season, episode: episode, priorityOffset: offset)
+                }
             }
             for await item in group {
                 if let item { payloads.append(item) }
@@ -233,6 +314,119 @@ final class PluginStore: ObservableObject {
             return ranked
         }
         return RankEnvelope(ok: false, message: Messages.noOptions)
+    }
+
+    private func runJsPayload(
+        plugin: JsPlugin,
+        id: String,
+        type: String,
+        season: Int,
+        episode: Int,
+        priorityOffset: Int
+    ) async -> AddonPayload? {
+        guard !id.isEmpty,
+              let raw = await JsRuntime.shared.runGetStreams(
+                  code: plugin.code, tmdbId: id, mediaType: type, season: season, episode: episode
+              ) else { return nil }
+        let normalized = NativeCore.normalizeJs(raw, pluginName: plugin.name)
+        guard let data = normalized.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let streams = dict["streams"] as? [[String: Any]], !streams.isEmpty else {
+            return nil
+        }
+        let payload = JSONValue.object([
+            "streams": .array(streams.map { JSONValue.from($0) })
+        ])
+        return AddonPayload(
+            id: plugin.key,
+            name: plugin.name,
+            priority: priorityOffset + plugin.priority,
+            payload: payload
+        )
+    }
+
+    func installLocalJs(name: String, code: String) -> (Bool, String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (false, "El archivo JS está vacío.") }
+        guard JsRuntime.shared.validate(trimmed) else {
+            return (false, "El archivo JS debe exportar la función getStreams.")
+        }
+        let cleanName = name.replacingOccurrences(of: ".js", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = cleanName.isEmpty ? "Plugin JS local" : cleanName
+        let slug = finalName.lowercased().replacingOccurrences(of: " ", with: "-")
+        let pKey = "js:local:\(slug)"
+        let existing = jsPlugins.first { $0.key == pKey }
+        let jsPlugin = JsPlugin(
+            key: pKey,
+            pluginId: slug,
+            name: finalName,
+            code: trimmed,
+            enabled: existing?.enabled ?? true,
+            priority: existing?.priority ?? jsPlugins.count,
+            installedAt: existing?.installedAt ?? Date().timeIntervalSince1970
+        )
+        jsPlugins.removeAll { $0.key == pKey }
+        jsPlugins.append(jsPlugin)
+        persistJs()
+        return (true, "\(finalName) (JS) instalado.")
+    }
+
+    func setJsEnabled(_ plugin: JsPlugin, enabled: Bool) {
+        guard let i = jsPlugins.firstIndex(where: { $0.key == plugin.key }) else { return }
+        jsPlugins[i].enabled = enabled
+        persistJs()
+    }
+
+    func removeJs(_ plugin: JsPlugin) {
+        jsPlugins.removeAll { $0.key == plugin.key }
+        persistJs()
+    }
+
+    func moveJs(_ plugin: JsPlugin, delta: Int) {
+        guard let index = jsPlugins.firstIndex(where: { $0.key == plugin.key }) else { return }
+        let target = min(max(index + delta, 0), jsPlugins.count - 1)
+        guard target != index else { return }
+        var list = jsPlugins
+        let item = list.remove(at: index)
+        list.insert(item, at: target)
+        jsPlugins = list.enumerated().map { offset, element in
+            var copy = element
+            copy.priority = offset
+            return copy
+        }
+        persistJs()
+    }
+
+    func testJs(_ plugin: JsPlugin) -> (Bool, String) {
+        if JsRuntime.shared.validate(plugin.code) {
+            return (true, "\(plugin.name) · JS válido · \(plugin.types.joined(separator: ", "))")
+        }
+        return (false, "El script no expone getStreams o contiene un error.")
+    }
+
+    func refreshJs(_ plugin: JsPlugin) async -> (Bool, String) {
+        guard !plugin.scriptUrl.isEmpty else {
+            return (false, "Los archivos JS locales se actualizan importándolos de nuevo.")
+        }
+        guard let code = try? await http.text(plugin.scriptUrl, settings: settings.value) else {
+            return (false, Messages.network)
+        }
+        guard JsRuntime.shared.validate(code) else {
+            return (false, "La nueva versión del script no es válida.")
+        }
+        if let i = jsPlugins.firstIndex(where: { $0.key == plugin.key }) {
+            jsPlugins[i].code = code
+            persistJs()
+        }
+        return (true, "\(plugin.name) actualizado.")
+    }
+
+    private func persistJs() {
+        jsPlugins.sort { $0.priority < $1.priority }
+        if let data = try? JSONEncoder().encode(jsPlugins) {
+            settings.putRaw(jsKey, data: data)
+        }
     }
 
     private func fetchPayload(planned: PlannedAddon, plugin: Plugin) async -> AddonPayload? {

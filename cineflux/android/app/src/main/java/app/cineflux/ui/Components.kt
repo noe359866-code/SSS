@@ -1,6 +1,7 @@
 package app.cineflux.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -171,7 +172,8 @@ fun PosterCard(
     item: MediaItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    showTitle: Boolean = true
+    showTitle: Boolean = true,
+    showRatings: Boolean = true
 ) {
     Column(modifier.clickable(onClick = onClick)) {
         Box(
@@ -180,6 +182,7 @@ fun PosterCard(
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(10.dp))
                 .background(PanelHigh)
+                .border(1.dp, Stroke.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
         ) {
             PosterGradient(
                 seed = item.key,
@@ -204,20 +207,22 @@ fun PosterCard(
                         )
                     )
             )
-            Row(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(7.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                item.tomato?.let {
-                    ScorePill("🍅 $it%", Color(0xCC2A0B08), Color(0xFFFFB3A8))
-                }
-                if (item.tomato == null && item.scoreLabel.isNotBlank()) {
-                    ScorePill(
-                        "★ " + item.scoreLabel,
-                        Color(0xCC1A1408), Golden
-                    )
+            if (showRatings) {
+                Row(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    item.tomato?.let {
+                        ScorePill("🍅 $it%", Color(0xCC2A0B08), Color(0xFFFFB3A8))
+                    }
+                    if (item.tomato == null && item.scoreLabel.isNotBlank()) {
+                        ScorePill(
+                            "★ " + item.scoreLabel,
+                            Color(0xCC1A1408), Golden
+                        )
+                    }
                 }
             }
         }
@@ -623,9 +628,40 @@ fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
             .padding(horizontal = 18.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(Panel)
+            .border(1.dp, Stroke.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
             .padding(16.dp),
         content = content
     )
+}
+
+@Composable
+fun PosterSkeletonRow(count: Int = 5, compact: Boolean = false) {
+    val cardWidth = if (compact) 104.dp else 124.dp
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        repeat(count) {
+            Column(Modifier.width(cardWidth)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(PanelHigh)
+                        .border(1.dp, Stroke.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                )
+                Spacer(Modifier.height(7.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.75f)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(PanelHigh)
+                )
+            }
+        }
+    }
 }
 
 @Composable

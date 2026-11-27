@@ -741,6 +741,84 @@ void test_catalog_plan() {
   CHECK(!none["message"].string().empty());
 }
 
+void test_js_plugins() {
+  using cfx::Json;
+  SECTION("14 · Plugins JS locales (Nuvio)");
+
+  const char* repo = R"({
+    "name": "Nuvio Providers",
+    "version": "2.1.0",
+    "scrapers": [
+      {
+        "id": "showbox",
+        "name": "ShowBox",
+        "description": "Streams HD",
+        "version": "1.2.0",
+        "enabled": true,
+        "supportedTypes": ["movie", "tv"],
+        "filename": "providers/showbox.js"
+      },
+      {
+        "name": "Direct One",
+        "url": "https://cdn.example.com/direct.js",
+        "supportedTypes": ["movie"]
+      }
+    ]
+  })";
+
+  const char* raw_repo = cfx_parse_js_repo(repo, "https://raw.example.com/nuvio/manifest.json");
+  Json parsed_repo;
+  CHECK(Json::parse(raw_repo, parsed_repo));
+  cfx_free(const_cast<char*>(raw_repo));
+
+  CHECK(parsed_repo["ok"].boolean());
+  CHECK_EQ(parsed_repo["name"].string(), std::string("Nuvio Providers"));
+  CHECK_EQ(parsed_repo["plugins"].items().size(), static_cast<std::size_t>(2));
+  CHECK_EQ(parsed_repo["plugins"][0]["id"].string(), std::string("showbox"));
+  CHECK_EQ(parsed_repo["plugins"][0]["scriptUrl"].string(),
+           std::string("https://raw.example.com/nuvio/providers/showbox.js"));
+  CHECK_EQ(parsed_repo["plugins"][0]["types"].items().size(), static_cast<std::size_t>(2));
+  CHECK_EQ(parsed_repo["plugins"][0]["types"][1].string(), std::string("series"));
+  CHECK_EQ(parsed_repo["plugins"][1]["id"].string(), std::string("direct-one"));
+  CHECK_EQ(parsed_repo["plugins"][1]["scriptUrl"].string(),
+           std::string("https://cdn.example.com/direct.js"));
+
+  // Normalización de streams devueltos por getStreams()
+  const char* js_output = R"([
+    {
+      "name": "ShowBox",
+      "title": "Dune.2024.1080p.WEB-DL.mkv",
+      "url": "https://stream.example.com/master.m3u8",
+      "quality": "1080p",
+      "size": "2.4 GB",
+      "headers": {"Referer": "https://ref.example.com/", "User-Agent": "Cineflux/1.0"},
+      "subtitles": [{"url": "https://sub.example.com/es.vtt", "lang": "es"}]
+    },
+    {
+      "title": "Sin URL"
+    }
+  ])";
+  const char* raw_norm = cfx_normalize_js_streams(js_output, "ShowBox");
+  Json norm;
+  CHECK(Json::parse(raw_norm, norm));
+  cfx_free(const_cast<char*>(raw_norm));
+
+  CHECK_EQ(norm["streams"].items().size(), static_cast<std::size_t>(1));
+  CHECK_EQ(norm["streams"][0]["url"].string(),
+           std::string("https://stream.example.com/master.m3u8"));
+  CHECK_EQ(norm["streams"][0]["name"].string(), std::string("ShowBox · 1080p"));
+  CHECK_EQ(norm["streams"][0]["behaviorHints"]["proxyHeaders"]["request"]["Referer"].string(),
+           std::string("https://ref.example.com/"));
+  CHECK_EQ(norm["streams"][0]["subtitles"].items().size(), static_cast<std::size_t>(1));
+
+  // Repositorio inválido
+  const char* bad_repo = cfx_parse_js_repo(R"({"name":"Vacío"})", "");
+  Json bad;
+  CHECK(Json::parse(bad_repo, bad));
+  cfx_free(const_cast<char*>(bad_repo));
+  CHECK(!bad["ok"].boolean());
+}
+
 int main() {
   std::cout << "Cineflux · pruebas del núcleo C++\n================================";
   test_json();
@@ -754,6 +832,7 @@ int main() {
   test_c_api();
   test_skip_segments();
   test_catalog_plan();
+  test_js_plugins();
 
   std::cout << "\n================================\n";
   std::cout << g_checks - g_failures << "/" << g_checks << " comprobaciones correctas\n";

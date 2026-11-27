@@ -32,17 +32,113 @@ struct SettingsView: View {
                 NavigationLink {
                     PluginsView()
                 } label: {
+                    let total = plugins.plugins.count + plugins.jsPlugins.count
+                    let active = plugins.plugins.filter(\.enabled).count + plugins.jsPlugins.filter(\.enabled).count
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Plugins")
-                        Text(plugins.plugins.isEmpty
+                        Text(total == 0
                              ? "Sin plugins instalados"
-                             : "\(plugins.plugins.count) instalados · \(plugins.plugins.filter(\.enabled).count) activos")
+                             : "\(total) instalados · \(active) activos (\(plugins.jsPlugins.count) JS)")
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.muted)
                     }
                 }
             } header: {
                 Text("Reproducción")
+            }
+
+            Section {
+                Toggle("Recordar posición", isOn: Binding(
+                    get: { settings.value.rememberPosition },
+                    set: { v in settings.update { $0.rememberPosition = v } }
+                ))
+                .tint(Theme.rose)
+
+                Picker("Velocidad por defecto", selection: Binding(
+                    get: { settings.value.defaultPlaybackSpeed },
+                    set: { v in settings.update { $0.defaultPlaybackSpeed = v } }
+                )) {
+                    Text("0.75×").tag(0.75)
+                    Text("1×").tag(1.0)
+                    Text("1.25×").tag(1.25)
+                    Text("1.5×").tag(1.5)
+                    Text("2×").tag(2.0)
+                }
+
+                Picker("Salto rápido", selection: Binding(
+                    get: { settings.value.seekStepSeconds },
+                    set: { v in settings.update { $0.seekStepSeconds = v } }
+                )) {
+                    Text("5 s").tag(5)
+                    Text("10 s").tag(10)
+                    Text("15 s").tag(15)
+                    Text("30 s").tag(30)
+                }
+
+                Toggle("Subtítulos automáticos", isOn: Binding(
+                    get: { settings.value.subtitlesEnabled },
+                    set: { v in settings.update { $0.subtitlesEnabled = v } }
+                ))
+                .tint(Theme.rose)
+
+                if settings.value.subtitlesEnabled {
+                    Picker("Idioma de subtítulos", selection: Binding(
+                        get: { settings.value.subtitleLanguage },
+                        set: { v in settings.update { $0.subtitleLanguage = v } }
+                    )) {
+                        Text("Español").tag("es")
+                        Text("Inglés").tag("en")
+                        Text("Portugués").tag("pt")
+                        Text("Francés").tag("fr")
+                    }
+
+                    Picker("Tamaño de subtítulos", selection: Binding(
+                        get: { settings.value.subtitleSize },
+                        set: { v in settings.update { $0.subtitleSize = v } }
+                    )) {
+                        Text("Pequeño").tag("small")
+                        Text("Medio").tag("medium")
+                        Text("Grande").tag("large")
+                    }
+                }
+            } header: {
+                Text("Reproductor y subtítulos")
+            }
+
+            Section {
+                Toggle("Mostrar notas en carátulas", isOn: Binding(
+                    get: { settings.value.showRatingsOnCards },
+                    set: { v in settings.update { $0.showRatingsOnCards = v } }
+                ))
+                .tint(Theme.rose)
+
+                Toggle("Tarjetas compactas", isOn: Binding(
+                    get: { settings.value.compactCards },
+                    set: { v in settings.update { $0.compactCards = v } }
+                ))
+                .tint(Theme.rose)
+            } header: {
+                Text("Interfaz y diseño")
+            }
+
+            Section {
+                Picker("Tiempo de espera por plugin", selection: Binding(
+                    get: { settings.value.pluginTimeoutSec },
+                    set: { v in settings.update { $0.pluginTimeoutSec = v } }
+                )) {
+                    Text("8 s").tag(8)
+                    Text("12 s").tag(12)
+                    Text("20 s").tag(20)
+                    Text("30 s").tag(30)
+                }
+
+                Toggle("Solo reproducir con Wi-Fi", isOn: Binding(
+                    get: { settings.value.wifiOnlyStreaming },
+                    set: { v in settings.update { $0.wifiOnlyStreaming = v } }
+                ))
+                .tint(Theme.rose)
+            } header: {
+                Text("Rendimiento y red")
             }
 
             Section {

@@ -3,7 +3,7 @@
 CXX      ?= c++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic -Iinclude
 BUILD    ?= build
-SRC      := src/manifest.cpp src/profile.cpp src/stream.cpp src/ids.cpp src/skip.cpp src/catalog.cpp src/c_api.cpp
+SRC      := src/manifest.cpp src/profile.cpp src/stream.cpp src/ids.cpp src/skip.cpp src/catalog.cpp src/js_plugin.cpp src/c_api.cpp
 HDR      := $(wildcard include/cineflux/*.h include/cineflux/*.hpp)
 
 .PHONY: all test probe clean

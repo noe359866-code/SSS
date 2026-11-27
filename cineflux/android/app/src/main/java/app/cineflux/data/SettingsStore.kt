@@ -30,7 +30,17 @@ data class AppSettings(
     val autoSkipRecap: Boolean = true,
     val autoSkipCredits: Boolean = false,
     val animeSkipClientId: String = "",
-    val catalogSources: List<String> = DEFAULT_CATALOG_SOURCES
+    val catalogSources: List<String> = DEFAULT_CATALOG_SOURCES,
+    val defaultPlaybackSpeed: Float = 1.0f,
+    val seekStepSeconds: Int = 10,
+    val rememberPosition: Boolean = true,
+    val subtitlesEnabled: Boolean = true,
+    val subtitleLanguage: String = "es",
+    val subtitleSize: String = "medium",
+    val pluginTimeoutSec: Int = 12,
+    val wifiOnlyStreaming: Boolean = false,
+    val compactCards: Boolean = false,
+    val showRatingsOnCards: Boolean = true
 ) {
     val hasOmdb: Boolean get() = omdbKey.isNotBlank()
     val hasCatalogSources: Boolean get() = catalogSources.isNotEmpty()
@@ -77,6 +87,7 @@ class SettingsStore(context: Context) {
     companion object {
         private const val KEY_SETTINGS = "settings.v1"
         const val KEY_PLUGINS = "plugins.v1"
+        const val KEY_JS_PLUGINS = "js_plugins.v1"
         const val KEY_PROFILES = "profiles.v1"
         const val KEY_LIBRARY = "library.v1"
     }

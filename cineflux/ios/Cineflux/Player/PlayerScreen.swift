@@ -12,6 +12,7 @@ struct PlayerScreen: View {
 
     @StateObject private var controller: PlaybackController
     @State private var showControls = true
+    @State private var locked = false
     @State private var showProfiles = false
 
     init(model: AppModel, item: MediaItem, season: Int, episode: Int) {
@@ -147,25 +148,60 @@ struct PlayerScreen: View {
 
     private var controls: some View {
         VStack {
-            topBar
-            Spacer()
-            if controller.buffering {
-                ProgressView().tint(.white).scaleEffect(1.1)
+            if locked {
                 Spacer()
-            } else if !controller.isPlaying {
                 Button {
-                    controller.togglePlay()
+                    locked = false
                 } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(.white)
-                        .frame(width: 64, height: 64)
-                        .background(Color.black.opacity(0.55))
-                        .clipShape(Circle())
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                        Text("Pantalla bloqueada · Toca para desbloquear")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.7))
+                    .clipShape(Capsule())
+                }
+                .padding(.bottom, 28)
+            } else {
+                topBar
+                Spacer()
+                if controller.buffering {
+                    ProgressView().tint(.white).scaleEffect(1.1)
+                } else {
+                    // Controles centrales estilo Netflix (retroceder · play/pausa · avanzar)
+                    HStack(spacing: 34) {
+                        Button { controller.seekBackward() } label: {
+                            Image(systemName: "gobackward.10")
+                                .font(.system(size: 26))
+                                .foregroundStyle(.white)
+                                .frame(width: 52, height: 52)
+                                .background(Color.black.opacity(0.45))
+                                .clipShape(Circle())
+                        }
+                        Button { controller.togglePlay() } label: {
+                            Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.white)
+                                .frame(width: 68, height: 68)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
+                        Button { controller.seekForward() } label: {
+                            Image(systemName: "goforward.10")
+                                .font(.system(size: 26))
+                                .foregroundStyle(.white)
+                                .frame(width: 52, height: 52)
+                                .background(Color.black.opacity(0.45))
+                                .clipShape(Circle())
+                        }
+                    }
                 }
                 Spacer()
+                bottomBar
             }
-            bottomBar
         }
     }
 
@@ -250,29 +286,35 @@ struct PlayerScreen: View {
             }
 
             HStack(spacing: 18) {
-                Button { controller.skip(by: -10) } label: {
-                    Image(systemName: "gobackward.10")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.white)
-                }
-                Button { controller.togglePlay() } label: {
-                    Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(.white)
-                        .frame(width: 48, height: 48)
-                        .background(Color.white.opacity(0.2))
-                        .clipShape(Circle())
-                }
-                Button { controller.skip(by: 10) } label: {
-                    Image(systemName: "goforward.10")
-                        .font(.system(size: 20))
+                Button {
+                    let speeds = [0.75, 1.0, 1.25, 1.5, 2.0]
+                    let idx = speeds.firstIndex { abs($0 - controller.playbackSpeed) < 0.05 } ?? 1
+                    controller.setSpeed(speeds[(idx + 1) % speeds.count])
+                } label: {
+                    let label = controller.playbackSpeed == 1.0 ? "Velocidad (1×)" : String(format: "Velocidad (%.2g×)", controller.playbackSpeed)
+                    Text(label)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
                 Spacer()
+                Button {
+                    locked = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lock.open")
+                        Text("Bloquear")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                }
+                Spacer()
                 Button { controller.toggleSubtitles() } label: {
-                    Image(systemName: "captions.bubble")
-                        .font(.system(size: 19))
-                        .foregroundStyle(controller.subtitlesEnabled ? Theme.rose : Theme.muted)
+                    HStack(spacing: 4) {
+                        Image(systemName: "captions.bubble")
+                        Text("Subtítulos")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(controller.subtitlesEnabled ? Theme.rose : Theme.muted)
                 }
             }
             .padding(.horizontal, 6)

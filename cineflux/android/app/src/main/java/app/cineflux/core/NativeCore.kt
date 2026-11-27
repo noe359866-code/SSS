@@ -27,8 +27,9 @@ object NativeCore {
     external fun planRequests(request: String): String
     external fun rankStreams(request: String): String
     external fun skipSegments(request: String): String
-
     external fun planCatalog(request: String): String
+    external fun parseJsRepo(repoJson: String, baseUrl: String): String
+    external fun normalizeJsStreams(rawJson: String, pluginName: String): String
 
     fun coreVersion(): String =
         if (!available) "—" else runCatching { version() }.getOrDefault("—")
@@ -85,6 +86,23 @@ object NativeCore {
             Log.w(TAG, "saltos ilegibles", it)
             SkipEnvelope()
         }
+    }
+
+    fun jsRepo(repoJson: String, baseUrl: String = ""): JsRepoEnvelope {
+        if (!available) return JsRepoEnvelope(ok = false, message = Messages.manifest)
+        return runCatching {
+            AppJson.decodeFromString<JsRepoEnvelope>(parseJsRepo(repoJson, baseUrl))
+        }.getOrElse {
+            Log.w(TAG, "repositorio JS ilegible", it)
+            JsRepoEnvelope(ok = false, message = Messages.manifest)
+        }
+    }
+
+    fun normalizeJs(rawJson: String, pluginName: String = ""): String {
+        if (!available) return """{"streams":[]}"""
+        return runCatching {
+            normalizeJsStreams(rawJson, pluginName)
+        }.getOrDefault("""{"streams":[]}""")
     }
 
     fun rank(

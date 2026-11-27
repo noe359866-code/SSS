@@ -101,6 +101,7 @@ struct PosterCard: View {
     let item: MediaItem
     var width: CGFloat = 124
     var showsTitle = true
+    var showsRatings = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -120,19 +121,25 @@ struct PosterCard: View {
                     )
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Theme.stroke.opacity(0.35), lineWidth: 1)
+                )
 
-                HStack(spacing: 4) {
-                    if let tomato = item.tomato {
-                        Badge(text: "🍅 \(tomato)%", foreground: Color(hex: "#FFB3A8"), background: Color(hex: "#2A0B08").opacity(0.9))
-                    } else if !item.scoreLabel.isEmpty {
-                        Badge(
-                            text: "★ \(item.scoreLabel)",
-                            foreground: Theme.golden,
-                            background: Color(hex: "#1A1408").opacity(0.9)
-                        )
+                if showsRatings {
+                    HStack(spacing: 4) {
+                        if let tomato = item.tomato {
+                            Badge(text: "🍅 \(tomato)%", foreground: Color(hex: "#FFB3A8"), background: Color(hex: "#2A0B08").opacity(0.9))
+                        } else if !item.scoreLabel.isEmpty {
+                            Badge(
+                                text: "★ \(item.scoreLabel)",
+                                foreground: Theme.golden,
+                                background: Color(hex: "#1A1408").opacity(0.9)
+                            )
+                        }
                     }
+                    .padding(7)
                 }
-                .padding(7)
             }
 
             if showsTitle {

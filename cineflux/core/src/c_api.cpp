@@ -11,6 +11,7 @@
 
 #include "cineflux/errors.hpp"
 #include "cineflux/ids.hpp"
+#include "cineflux/js_plugin.hpp"
 #include "cineflux/json.hpp"
 #include "cineflux/manifest.hpp"
 #include "cineflux/profile.hpp"
@@ -242,6 +243,27 @@ const char* cfx_plan_catalog(const char* request_json) {
   cfx::Json body = request;
   cfx::CatalogPlan plan = cfx::plan_catalog(body);
   return to_c_string(plan.to_json().dump());
+}
+
+const char* cfx_parse_js_repo(const char* repo_json,
+                              const char* base_url_override) {
+  const std::string raw = repo_json ? repo_json : "";
+  const std::string base = base_url_override ? base_url_override : "";
+  cfx::JsRepoResult result = cfx::parse_js_repo(raw, base);
+  return to_c_string(result.to_json().dump());
+}
+
+const char* cfx_normalize_js_streams(const char* raw_json,
+                                     const char* plugin_name) {
+  const std::string raw = raw_json ? raw_json : "";
+  const std::string name = plugin_name ? plugin_name : "";
+  cfx::Json parsed;
+  if (!cfx::Json::parse(raw, parsed)) {
+    cfx::Json empty = cfx::Json::object();
+    empty.set("streams", cfx::Json::array());
+    return to_c_string(empty.dump());
+  }
+  return to_c_string(cfx::normalize_js_streams(parsed, name).dump());
 }
 
 void cfx_free(char* pointer) { std::free(pointer); }
