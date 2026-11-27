@@ -42,6 +42,29 @@ enum NativeCore {
         return call(data, cfx_skip_segments)
     }
 
+    static func jsRepo(_ repoJSON: String, baseURL: String = "") -> JsRepoEnvelope? {
+        var result: JsRepoEnvelope?
+        repoJSON.withCString { repoPtr in
+            baseURL.withCString { basePtr in
+                result = decode(cfx_parse_js_repo(repoPtr, basePtr))
+            }
+        }
+        return result
+    }
+
+    static func normalizeJs(_ rawJSON: String, pluginName: String = "") -> String {
+        var out = #"{"streams":[]}"#
+        rawJSON.withCString { rawPtr in
+            pluginName.withCString { namePtr in
+                if let ptr = cfx_normalize_js_streams(rawPtr, namePtr) {
+                    defer { cfx_free(UnsafeMutablePointer(mutating: ptr)) }
+                    out = String(cString: ptr)
+                }
+            }
+        }
+        return out
+    }
+
     static func rank(profile: Profile, payloads: [AddonPayload], allowTorrents: Bool) -> RankEnvelope? {
         let request = RankRequest(
             profile: profile,

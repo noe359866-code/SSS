@@ -156,6 +156,7 @@ private fun PlayerRoute(
     val profiles by AppGraph.shared.profiles.profiles.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
+    var locked by remember { mutableStateOf(false) }
     var showProfiles by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
@@ -234,56 +235,99 @@ private fun PlayerRoute(
                     exit = fadeOut()
                 ) {
                     Column(Modifier.fillMaxSize()) {
-                        PlayerTopBar(
-                            engine = engine,
-                            season = season,
-                            episode = episode,
-                            onBack = onClose,
-                            onProfile = { showProfiles = true }
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (engine.buffering) {
-                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
-                            }
+                        if (locked) {
                             Spacer(Modifier.weight(1f))
-                        } else if (!engine.isPlaying) {
-                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                IconButton(
-                                    onClick = { engine.togglePlay() },
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                TextButton(
+                                    onClick = { locked = false },
                                     modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0x99000000))
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(Color(0xB3000000))
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.PlayArrow, "Reproducir",
-                                        tint = Color.White, modifier = Modifier.size(38.dp)
-                                    )
+                                    Text("🔒 Pantalla bloqueada · Toca para desbloquear", color = Color.White, fontSize = 12.sp)
                                 }
                             }
-                            Spacer(Modifier.weight(1f))
                         } else {
+                            PlayerTopBar(
+                                engine = engine,
+                                season = season,
+                                episode = episode,
+                                onBack = onClose,
+                                onProfile = { showProfiles = true }
+                            )
                             Spacer(Modifier.weight(1f))
-                        }
-                        PlayerControls(
-                            engine = engine,
-                            dragging = dragging,
-                            dragValue = dragValue,
-                            onDrag = { dragging = true; dragValue = it },
-                            onDragFinished = {
-                                engine.seekTo(dragValue.toLong())
-                                dragging = false
-                            },
-                            landscape = landscape,
-                            onToggleFullscreen = {
-                                activity?.requestedOrientation = if (landscape) {
-                                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                } else {
-                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            if (engine.buffering) {
+                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+                                }
+                            } else {
+                                // Controles centrales estilo Netflix (retroceder · play/pausa · avanzar)
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { engine.seekBackward() },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0x66000000))
+                                    ) {
+                                        Icon(Icons.Rounded.Replay10, "Retroceder", tint = Color.White, modifier = Modifier.size(30.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { engine.togglePlay() },
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0x99000000))
+                                    ) {
+                                        Icon(
+                                            if (engine.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                            "Reproducir o pausar",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(40.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { engine.seekForward() },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0x66000000))
+                                    ) {
+                                        Icon(Icons.Rounded.Forward10, "Avanzar", tint = Color.White, modifier = Modifier.size(30.dp))
+                                    }
                                 }
                             }
-                        )
+                            Spacer(Modifier.weight(1f))
+                            PlayerControls(
+                                engine = engine,
+                                dragging = dragging,
+                                dragValue = dragValue,
+                                onDrag = { dragging = true; dragValue = it },
+                                onDragFinished = {
+                                    engine.seekTo(dragValue.toLong())
+                                    dragging = false
+                                },
+                                landscape = landscape,
+                                onToggleFullscreen = {
+                                    activity?.requestedOrientation = if (landscape) {
+                                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                    } else {
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                    }
+                                },
+                                onLock = { locked = true }
+                            )
+                        }
                     }
                 }
             }
@@ -486,7 +530,8 @@ private fun PlayerControls(
     onDrag: (Float) -> Unit,
     onDragFinished: () -> Unit,
     landscape: Boolean,
-    onToggleFullscreen: () -> Unit
+    onToggleFullscreen: () -> Unit,
+    onLock: () -> Unit
 ) {
     val duration = engine.durationMs
     val max = if (duration > 1000) duration.toFloat() else 1f
@@ -520,29 +565,22 @@ private fun PlayerControls(
         }
         Row(
             Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            IconButton(onClick = { engine.seekBy(-10_000) }) {
-                Icon(Icons.Rounded.Replay10, "Retroceder 10 s", tint = Color.White)
-            }
-            IconButton(
-                onClick = { engine.togglePlay() },
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x33FFFFFF))
+            TextButton(
+                onClick = {
+                    val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                    val idx = speeds.indexOfFirst { kotlin.math.abs(it - engine.playbackSpeed) < 0.05f }
+                    engine.setSpeed(speeds[(idx + 1) % speeds.size])
+                }
             ) {
-                Icon(
-                    if (engine.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    "Reproducir o pausar",
-                    tint = Color.White,
-                    modifier = Modifier.size(30.dp)
-                )
+                val speedLabel = if (engine.playbackSpeed == 1.0f) "Velocidad (1×)" else "Velocidad (${engine.playbackSpeed}×)"
+                Text(speedLabel, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             }
-            IconButton(onClick = { engine.seekBy(10_000) }) {
-                Icon(Icons.Rounded.Forward10, "Avanzar 10 s", tint = Color.White)
+            TextButton(onClick = onLock) {
+                Text("Bloquear", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             }
-            Spacer(Modifier.weight(1f))
             IconButton(onClick = { engine.toggleSubtitles() }) {
                 Icon(
                     Icons.Rounded.ClosedCaption,

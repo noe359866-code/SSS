@@ -16,6 +16,7 @@ final class PlaybackController: ObservableObject {
     @Published var position: Double = 0
     @Published var duration: Double = 0
     @Published var subtitlesEnabled = true
+    @Published var playbackSpeed: Double = 1.0
     @Published var activeSkip: SkipSegment?
 
     let player = AVPlayer()
@@ -44,6 +45,8 @@ final class PlaybackController: ObservableObject {
         self.season = season
         self.episode = episode
         self.profile = model.profiles.selected
+        self.subtitlesEnabled = model.settings.value.subtitlesEnabled
+        self.playbackSpeed = model.settings.value.defaultPlaybackSpeed
         player.actionAtItemEnd = .pause
         player.allowsExternalPlayback = true
         installObservers()
@@ -103,7 +106,24 @@ final class PlaybackController: ObservableObject {
             player.pause()
         } else {
             player.play()
+            player.rate = Float(playbackSpeed)
         }
+    }
+
+    func setSpeed(_ speed: Double) {
+        let clamped = max(0.5, min(2.5, speed))
+        playbackSpeed = clamped
+        if player.timeControlStatus == .playing {
+            player.rate = Float(clamped)
+        }
+    }
+
+    func seekForward() {
+        skip(by: Double(model.settings.value.seekStepSeconds))
+    }
+
+    func seekBackward() {
+        skip(by: -Double(model.settings.value.seekStepSeconds))
     }
 
     func seek(to seconds: Double) {
@@ -131,7 +151,8 @@ final class PlaybackController: ObservableObject {
             return
         }
         if subtitlesEnabled {
-            let preferred = group.options.first { $0.extendedLanguageTag?.hasPrefix("es") == true }
+            let lang = model.settings.value.subtitleLanguage.isEmpty ? "es" : model.settings.value.subtitleLanguage
+            let preferred = group.options.first { $0.extendedLanguageTag?.hasPrefix(lang) == true }
                 ?? group.options.first
             item.select(preferred, in: group)
         } else {

@@ -14,6 +14,7 @@ add_library(cineflux_core STATIC
     src/ids.cpp
     src/skip.cpp
     src/catalog.cpp
+    src/js_plugin.cpp
     src/c_api.cpp
 )
 target_include_directories(cineflux_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

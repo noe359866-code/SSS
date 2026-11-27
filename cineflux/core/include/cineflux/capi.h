@@ -89,6 +89,21 @@ CFX_EXPORT const char* cfx_skip_segments(const char* request_json);
  */
 CFX_EXPORT const char* cfx_plan_catalog(const char* request_json);
 
+/*
+ * Parsea un manifest de repositorio de plugins JS (formato Nuvio: scrapers/providers).
+ * Salida:
+ *   {"ok":true,"name":"...","version":"...","baseUrl":"...","plugins":[...],"message":""}
+ */
+CFX_EXPORT const char* cfx_parse_js_repo(const char* repo_json,
+                                         const char* base_url_override);
+
+/*
+ * Normaliza la salida JSON de `getStreams()` de un plugin JS al formato
+ * `{"streams":[...]}` listo para `cfx_rank_streams`.
+ */
+CFX_EXPORT const char* cfx_normalize_js_streams(const char* raw_json,
+                                                const char* plugin_name);
+
 /* Libera una cadena devuelta por la API. */
 CFX_EXPORT void cfx_free(char* pointer);
 

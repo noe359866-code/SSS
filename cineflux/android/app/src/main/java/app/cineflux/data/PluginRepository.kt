@@ -2,6 +2,7 @@ package app.cineflux.data
 
 import app.cineflux.core.AddonPayload
 import app.cineflux.core.AppJson
+import app.cineflux.core.JsPlugin
 import app.cineflux.core.ManifestEnvelope
 import app.cineflux.core.Messages
 import app.cineflux.core.NativeCore
@@ -38,13 +39,23 @@ class PluginRepository(
     private val settings: SettingsStore,
     private val http: Http
 ) {
+    private val jsRuntime = JsRuntime(http)
+
     private val _plugins = MutableStateFlow(load().filter { it.manifest.capabilities.streams })
     val plugins: StateFlow<List<Plugin>> = _plugins.asStateFlow()
 
+    private val _jsPlugins = MutableStateFlow(loadJs())
+    val jsPlugins: StateFlow<List<JsPlugin>> = _jsPlugins.asStateFlow()
+
     private val counter = AtomicInteger(_plugins.value.size)
+    private val jsCounter = AtomicInteger(_jsPlugins.value.size)
 
     val streamPlugins: List<Plugin>
         get() = _plugins.value.filter { it.enabled && it.streams && it.manifest.baseUrl.isNotBlank() }
+            .sortedBy { it.priority }
+
+    val activeJsPlugins: List<JsPlugin>
+        get() = _jsPlugins.value.filter { it.enabled && it.code.isNotBlank() }
             .sortedBy { it.priority }
 
     val catalogPlugins: List<Pair<Plugin, CatalogInfo>>
@@ -57,15 +68,80 @@ class PluginRepository(
 
         val isUrl = URL_PATTERN.containsMatchIn(trimmed)
         if (!isUrl) return InstallResult(false, Messages.needBaseUrl)
-        val envelope: ManifestEnvelope = when {
-            isUrl -> {
-                val body = runCatching { http.text(trimmed) }.getOrElse {
-                    return InstallResult(false, Messages.network)
-                }
-                NativeCore.manifest(body, baseUrlOverride.trim().ifEmpty { trimmed })
+
+        // 1. Enlace directo a un archivo .js
+        if (JS_URL_PATTERN.containsMatchIn(trimmed)) {
+            val code = runCatching { http.text(trimmed) }.getOrElse {
+                return InstallResult(false, Messages.network)
             }
-            else -> NativeCore.manifest(trimmed, baseUrlOverride.trim())
+            if (!jsRuntime.validate(code)) {
+                return InstallResult(false, "Ese archivo JS no expone la función getStreams.")
+            }
+            val fileName = trimmed.substringAfterLast('/').substringBefore('?').removeSuffix(".js")
+            val name = fileName.ifBlank { "Plugin JS" }
+            val key = "js:$trimmed"
+            val existing = _jsPlugins.value.firstOrNull { it.key == key }
+            val jsPlugin = JsPlugin(
+                key = key,
+                id = fileName.lowercase().ifBlank { "js-${System.currentTimeMillis()}" },
+                name = name,
+                scriptUrl = trimmed,
+                code = code,
+                enabled = existing?.enabled ?: true,
+                priority = existing?.priority ?: jsCounter.getAndIncrement(),
+                installedAt = existing?.installedAt ?: System.currentTimeMillis()
+            )
+            persistJs(_jsPlugins.value.filterNot { it.key == key } + jsPlugin)
+            return InstallResult(ok = true, message = "$name (JS) instalado.")
         }
+
+        val body = runCatching { http.text(trimmed) }.getOrElse {
+            return InstallResult(false, Messages.network)
+        }
+
+        // 2. Repositorio de plugins JS estilo Nuvio (manifest.json con scrapers/providers)
+        val repo = NativeCore.jsRepo(body, baseUrlOverride.trim().ifEmpty { trimmed })
+        if (repo.ok && repo.plugins.isNotEmpty()) {
+            var installedCount = 0
+            val current = _jsPlugins.value.toMutableList()
+            for (entry in repo.plugins) {
+                val code = withTimeoutOrNull(12_000) {
+                    runCatching { http.text(entry.scriptUrl) }.getOrNull()
+                } ?: continue
+                if (!jsRuntime.validate(code)) continue
+                val key = "js:${entry.scriptUrl}"
+                val existing = current.firstOrNull { it.key == key }
+                val jsPlugin = JsPlugin(
+                    key = key,
+                    id = entry.id,
+                    name = entry.name,
+                    description = entry.description,
+                    version = entry.version,
+                    scriptUrl = entry.scriptUrl,
+                    repoUrl = trimmed,
+                    repoName = repo.name,
+                    code = code,
+                    types = entry.types,
+                    enabled = existing?.enabled ?: entry.enabledByDefault,
+                    priority = existing?.priority ?: jsCounter.getAndIncrement(),
+                    installedAt = existing?.installedAt ?: System.currentTimeMillis()
+                )
+                current.removeAll { it.key == key }
+                current.add(jsPlugin)
+                installedCount++
+            }
+            if (installedCount == 0) {
+                return InstallResult(false, "No se pudo descargar ningún plugin JS válido del repositorio.")
+            }
+            persistJs(current)
+            return InstallResult(
+                ok = true,
+                message = "${repo.name}: $installedCount plugin(s) JS instalados."
+            )
+        }
+
+        // 3. Manifest estándar de addon (Stremio)
+        val envelope: ManifestEnvelope = NativeCore.manifest(body, baseUrlOverride.trim().ifEmpty { trimmed })
 
         val manifest = envelope.manifest
         if (!envelope.ok || manifest == null) {
@@ -147,7 +223,7 @@ class PluginRepository(
         )
     }
 
-    /** Consulta todos los plugins y devuelve la cola ya ordenada por el perfil. */
+    /** Consulta todos los plugins (HTTP + JS locales) y devuelve la cola ordenada por el perfil. */
     suspend fun resolve(
         type: String,
         imdbId: String,
@@ -157,38 +233,75 @@ class PluginRepository(
         profile: Profile
     ): RankEnvelope {
         val active = streamPlugins
-        if (active.isEmpty()) return RankEnvelope(ok = false, message = Messages.noOptions)
-
-        val plan = NativeCore.plan(
-            PlanRequest(
-                type = type,
-                imdbId = imdbId,
-                tmdbId = tmdbId,
-                season = season,
-                episode = episode,
-                addons = active.map { PlanAddon(it.key, it.manifest) }
-            )
-        )
-        if (!plan.ok || plan.addons.isEmpty()) {
+        val activeJs = activeJsPlugins.filter { it.supportsType(type) }
+        if (active.isEmpty() && activeJs.isEmpty()) {
             return RankEnvelope(ok = false, message = Messages.noOptions)
         }
 
         val payloads = coroutineScope {
-            plan.addons.map { planned ->
+            val httpJobs = if (active.isNotEmpty()) {
+                val plan = NativeCore.plan(
+                    PlanRequest(
+                        type = type,
+                        imdbId = imdbId,
+                        tmdbId = tmdbId,
+                        season = season,
+                        episode = episode,
+                        addons = active.map { PlanAddon(it.key, it.manifest) }
+                    )
+                )
+                if (plan.ok) {
+                    plan.addons.map { planned ->
+                        async(Dispatchers.IO) {
+                            val plugin = active.firstOrNull { it.key == planned.id } ?: return@async null
+                            fetchPayload(planned, plugin)
+                        }
+                    }
+                } else emptyList()
+            } else emptyList()
+
+            val jsJobs = activeJs.map { jsPlugin ->
                 async(Dispatchers.IO) {
-                    val plugin = active.firstOrNull { it.key == planned.id } ?: return@async null
-                    fetchPayload(planned, plugin)
+                    runJsPayload(jsPlugin, tmdbId.ifBlank { imdbId }, type, season, episode, active.size)
                 }
-            }.awaitAll().filterNotNull()
+            }
+
+            (httpJobs + jsJobs).awaitAll().filterNotNull()
         }
         if (payloads.isEmpty()) return RankEnvelope(ok = false, message = Messages.noOptions)
 
         return NativeCore.rank(profile, payloads, settings.value.allowTorrents)
     }
 
+    private suspend fun runJsPayload(
+        plugin: JsPlugin,
+        id: String,
+        type: String,
+        season: Int,
+        episode: Int,
+        priorityOffset: Int
+    ): AddonPayload? {
+        if (id.isBlank()) return null
+        val timeoutMs = settings.value.pluginTimeoutSec.coerceIn(5, 45) * 1000L
+        val raw = withTimeoutOrNull(timeoutMs) {
+            jsRuntime.runGetStreams(plugin.code, id, type, season, episode)
+        } ?: return null
+        val normalized = NativeCore.normalizeJs(raw, plugin.name)
+        val root = runCatching { AppJson.parseToJsonElement(normalized).jsonObject }.getOrNull() ?: return null
+        val streams = runCatching { root["streams"] as JsonArray }.getOrNull() ?: return null
+        if (streams.isEmpty()) return null
+        return AddonPayload(
+            id = plugin.key,
+            name = plugin.name,
+            priority = priorityOffset + plugin.priority,
+            payload = root
+        )
+    }
+
     private suspend fun fetchPayload(planned: PlannedAddon, plugin: Plugin): AddonPayload? {
+        val timeoutMs = settings.value.pluginTimeoutSec.coerceIn(5, 45) * 1000L
         for (url in planned.urls) {
-            val body = withTimeoutOrNull(12_000) {
+            val body = withTimeoutOrNull(timeoutMs) {
                 runCatching { http.text(url) }.getOrNull()
             } ?: continue
             val root = runCatching { AppJson.parseToJsonElement(body).jsonObject }.getOrNull() ?: continue
@@ -247,6 +360,92 @@ class PluginRepository(
         return http.tryJson(url)
     }
 
+    fun installLocalJs(name: String, code: String): InstallResult {
+        val trimmed = code.trim()
+        if (trimmed.isEmpty()) return InstallResult(false, "El archivo JS está vacío.")
+        if (!jsRuntime.validate(trimmed)) {
+            return InstallResult(false, "El archivo JS debe exportar la función getStreams.")
+        }
+        val cleanName = name.removeSuffix(".js").trim().ifBlank { "Plugin JS local" }
+        val slug = cleanName.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+            .ifBlank { "local-${System.currentTimeMillis()}" }
+        val key = "js:local:$slug"
+        val existing = _jsPlugins.value.firstOrNull { it.key == key }
+        val jsPlugin = JsPlugin(
+            key = key,
+            id = slug,
+            name = cleanName,
+            code = trimmed,
+            enabled = existing?.enabled ?: true,
+            priority = existing?.priority ?: jsCounter.getAndIncrement(),
+            installedAt = existing?.installedAt ?: System.currentTimeMillis()
+        )
+        persistJs(_jsPlugins.value.filterNot { it.key == key } + jsPlugin)
+        return InstallResult(ok = true, message = "$cleanName (JS) instalado.")
+    }
+
+    fun setJsEnabled(key: String, enabled: Boolean) {
+        persistJs(_jsPlugins.value.map { if (it.key == key) it.copy(enabled = enabled) else it })
+    }
+
+    fun removeJs(key: String) {
+        persistJs(_jsPlugins.value.filterNot { it.key == key })
+    }
+
+    fun moveJs(key: String, delta: Int) {
+        val list = _jsPlugins.value.sortedBy { it.priority }.toMutableList()
+        val index = list.indexOfFirst { it.key == key }
+        if (index < 0) return
+        val target = (index + delta).coerceIn(0, list.size - 1)
+        if (target == index) return
+        val moved = list.removeAt(index)
+        list.add(target, moved)
+        persistJs(list.mapIndexed { i, p -> p.copy(priority = i) })
+    }
+
+    suspend fun refreshJs(plugin: JsPlugin): InstallResult {
+        if (plugin.scriptUrl.isBlank()) {
+            return InstallResult(false, "Los archivos JS locales se actualizan importándolos de nuevo.")
+        }
+        val code = runCatching { http.text(plugin.scriptUrl) }.getOrElse {
+            return InstallResult(false, Messages.network)
+        }
+        if (!jsRuntime.validate(code)) {
+            return InstallResult(false, "La nueva versión del script no es válida.")
+        }
+        val updated = plugin.copy(code = code)
+        persistJs(_jsPlugins.value.map { if (it.key == plugin.key) updated else it })
+        return InstallResult(true, "${plugin.name} actualizado.")
+    }
+
+    fun testJs(plugin: JsPlugin): InstallResult {
+        val ok = jsRuntime.validate(plugin.code)
+        return if (ok) {
+            InstallResult(true, "${plugin.name} · JS válido · ${plugin.types.joinToString(", ")}")
+        } else {
+            InstallResult(false, "El script no expone getStreams o contiene un error.")
+        }
+    }
+
+    private fun persistJs(list: List<JsPlugin>) {
+        val ordered = list.sortedBy { it.priority }.mapIndexed { index, plugin ->
+            plugin.copy(priority = index)
+        }
+        _jsPlugins.value = ordered
+        jsCounter.set(ordered.size + 1)
+        settings.putRaw(
+            SettingsStore.KEY_JS_PLUGINS,
+            AppJson.encodeToString(ListSerializer(JsPlugin.serializer()), ordered)
+        )
+    }
+
+    private fun loadJs(): List<JsPlugin> {
+        val raw = settings.raw(SettingsStore.KEY_JS_PLUGINS) ?: return emptyList()
+        return runCatching {
+            AppJson.decodeFromString(ListSerializer(JsPlugin.serializer()), raw)
+        }.getOrDefault(emptyList())
+    }
+
     private fun persist(list: List<Plugin>) {
         val ordered = list.sortedBy { it.priority }.mapIndexed { index, plugin ->
             plugin.copy(priority = index)
@@ -268,5 +467,6 @@ class PluginRepository(
 
     companion object {
         private val URL_PATTERN = Regex("^https?://", RegexOption.IGNORE_CASE)
+        private val JS_URL_PATTERN = Regex("\\.js(\\?.*)?$", RegexOption.IGNORE_CASE)
     }
 }

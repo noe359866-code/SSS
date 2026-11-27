@@ -85,6 +85,10 @@ struct SettingsCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Theme.stroke.opacity(0.55), lineWidth: 1)
+        )
         .padding(.horizontal, 18)
     }
 }

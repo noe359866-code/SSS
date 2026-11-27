@@ -501,6 +501,16 @@ struct AppSettings: Codable, Hashable {
     var autoSkipCredits: Bool = false
     var animeSkipClientId: String = ""
     var catalogSources: [String] = CatalogDefaults.sources
+    var defaultPlaybackSpeed: Double = 1.0
+    var seekStepSeconds: Int = 10
+    var rememberPosition: Bool = true
+    var subtitlesEnabled: Bool = true
+    var subtitleLanguage: String = "es"
+    var subtitleSize: String = "medium"
+    var pluginTimeoutSec: Int = 12
+    var wifiOnlyStreaming: Bool = false
+    var compactCards: Bool = false
+    var showRatingsOnCards: Bool = true
 
     init() {}
 
@@ -523,6 +533,16 @@ struct AppSettings: Codable, Hashable {
         autoSkipCredits = try container.decodeIfPresent(Bool.self, forKey: .autoSkipCredits) ?? false
         animeSkipClientId = try container.decodeIfPresent(String.self, forKey: .animeSkipClientId) ?? ""
         catalogSources = try container.decodeIfPresent([String].self, forKey: .catalogSources) ?? CatalogDefaults.sources
+        defaultPlaybackSpeed = try container.decodeIfPresent(Double.self, forKey: .defaultPlaybackSpeed) ?? 1.0
+        seekStepSeconds = try container.decodeIfPresent(Int.self, forKey: .seekStepSeconds) ?? 10
+        rememberPosition = try container.decodeIfPresent(Bool.self, forKey: .rememberPosition) ?? true
+        subtitlesEnabled = try container.decodeIfPresent(Bool.self, forKey: .subtitlesEnabled) ?? true
+        subtitleLanguage = try container.decodeIfPresent(String.self, forKey: .subtitleLanguage) ?? "es"
+        subtitleSize = try container.decodeIfPresent(String.self, forKey: .subtitleSize) ?? "medium"
+        pluginTimeoutSec = try container.decodeIfPresent(Int.self, forKey: .pluginTimeoutSec) ?? 12
+        wifiOnlyStreaming = try container.decodeIfPresent(Bool.self, forKey: .wifiOnlyStreaming) ?? false
+        compactCards = try container.decodeIfPresent(Bool.self, forKey: .compactCards) ?? false
+        showRatingsOnCards = try container.decodeIfPresent(Bool.self, forKey: .showRatingsOnCards) ?? true
     }
 
     var hasCatalogSources: Bool { !catalogSources.isEmpty }

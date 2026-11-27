@@ -12,7 +12,12 @@ import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import app.cineflux.AppGraph
 import app.cineflux.core.Messages
 import app.cineflux.core.Profile
@@ -32,6 +37,7 @@ enum class PlaybackPhase { Searching, Playing, Empty }
  * siguiente en silencio; al usuario solo se le muestra el perfil, la calidad
  * y un mensaje humano si no queda nada.
  */
+@androidx.annotation.OptIn(UnstableApi::class)
 class PlaybackEngine(
     context: Context,
     private val graph: AppGraph,
@@ -41,7 +47,20 @@ class PlaybackEngine(
 ) {
     var mediaItem by mutableStateOf(initialItem)
         private set
-    val player: ExoPlayer = ExoPlayer.Builder(context).build()
+
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
+
+    private val dataSourceFactory: OkHttpDataSource.Factory =
+        OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent(graph.settings.value.userAgent)
+
+    val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
+        .build()
 
     var phase by mutableStateOf(PlaybackPhase.Searching)
         private set
@@ -57,7 +76,9 @@ class PlaybackEngine(
         private set
     var buffering by mutableStateOf(false)
         private set
-    var subtitlesEnabled by mutableStateOf(true)
+    var subtitlesEnabled by mutableStateOf(graph.settings.value.subtitlesEnabled)
+        private set
+    var playbackSpeed by mutableStateOf(graph.settings.value.defaultPlaybackSpeed)
         private set
     var positionMs by mutableLongStateOf(0L)
         private set
@@ -176,6 +197,16 @@ class PlaybackEngine(
         seekTo((positionMs + deltaMs).coerceIn(0, max))
     }
 
+    fun seekForward() = seekBy(graph.settings.value.seekStepSeconds * 1000L)
+
+    fun seekBackward() = seekBy(-graph.settings.value.seekStepSeconds * 1000L)
+
+    fun setSpeed(speed: Float) {
+        val clamped = speed.coerceIn(0.5f, 2.5f)
+        playbackSpeed = clamped
+        player.setPlaybackSpeed(clamped)
+    }
+
     fun toggleSubtitles() {
         subtitlesEnabled = !subtitlesEnabled
         applySubtitlePreference()
@@ -220,7 +251,14 @@ class PlaybackEngine(
         buffering = true
         bufferingSince = System.currentTimeMillis()
         runCatching {
+            val mergedHeaders = mutableMapOf<String, String>()
+            mergedHeaders["User-Agent"] = graph.settings.value.userAgent
+            choice.headers.forEach { (k, v) ->
+                if (k.isNotBlank() && v.isNotBlank()) mergedHeaders[k] = v
+            }
+            dataSourceFactory.setDefaultRequestProperties(mergedHeaders)
             player.setMediaItem(choice.toExoMediaItem())
+            player.setPlaybackSpeed(playbackSpeed)
             player.prepare()
             player.playWhenReady = true
             applySubtitlePreference()
@@ -315,11 +353,12 @@ class PlaybackEngine(
     }
 
     private fun applySubtitlePreference() {
+        val lang = graph.settings.value.subtitleLanguage.ifBlank { "es" }
         runCatching {
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
-                .setPreferredTextLanguage("es")
+                .setPreferredTextLanguage(lang)
                 .build()
         }
     }
